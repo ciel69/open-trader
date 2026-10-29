@@ -49,6 +49,66 @@ function ideaDetail(i) {
   d.appendChild(el("div", { class: "muted small mono", text: i.id }));
   return d;
 }
+// ---- карточки вкладки «Ждут уровня»: куда цена должна дойти, сколько осталось, где стоп и тейк, сколько живёт идея
+function pctFrom(base, x) { return isn(base) && base && isn(x) ? 100 * (x / base - 1) : null; }
+function levelPhrase(i) {
+  var d = i.dist_level_pct;
+  if (!isn(d)) return { big: "–", cap: "цены сейчас нет", cls: "" };
+  if (i.zone) return { big: spc(d, 2), cap: "цена у уровня (в пределах 0.3%)", cls: "near" };
+  return { big: (d > 0 ? "↓ " : "↑ ") + pc(Math.abs(d), 2), cap: d > 0 ? "цена выше уровня, ждём снижения" : "цена ниже уровня, ждём роста", cls: Math.abs(d) < 1 ? "close" : "" };
+}
+function ladder(i) {
+  var pts = [["stop", i.stop], ["level", i.level], ["tp", i.tp], ["now", i.now_price]].filter(function (p) { return isn(p[1]) && p[1] > 0; });
+  if (pts.length < 2) return null;
+  var lo = Math.min.apply(null, pts.map(function (p) { return p[1]; })), hi = Math.max.apply(null, pts.map(function (p) { return p[1]; })), pad = (hi - lo) * 0.08 || hi * 0.01;
+  lo -= pad; hi += pad;
+  var bar = el("div", { class: "lad-bar", role: "img", "aria-label": "Шкала цен: стоп, уровень, тейк и текущая цена" });
+  pts.forEach(function (p) { bar.appendChild(el("span", { class: "lad-mk lad-" + p[0], style: "left:" + (100 * (p[1] - lo) / (hi - lo)).toFixed(2) + "%" })); });
+  return bar;
+}
+function ideaCard(i, now) {
+  var ph = levelPhrase(i), left = isn(i.expires_epoch) ? i.expires_epoch - now : null;
+  var risk = isn(i.level) && isn(i.stop) ? Math.abs(pctFrom(i.level, i.stop)) : null, rew = isn(i.level) && isn(i.tp) ? Math.abs(pctFrom(i.level, i.tp)) : null;
+  var rrv = risk && rew ? rew / risk : null;
+  var head = function () {
+    return el("header", { class: "ic-head" },
+      el("b", { class: "ic-sym", text: i.sym }), chip((i.side || "?").toUpperCase(), "side " + (i.side === "long" ? "s-long" : i.side === "short" ? "s-short" : "")),
+      i.tag ? chip(i.tag, "") : null,
+      el("span", { class: "ic-ttl muted small", title: "идея сама истечёт, если цена до этого не дойдёт", text: left == null ? "без срока" : left > 0 ? "истечёт через " + dur(left) : "срок вышел" }));
+  };
+  if (!isn(i.level)) {                                   // заметка без уровня: сканер агента по ней не разбудит
+    return el("article", { class: "icard" }, head(), el("p", { class: "ic-note", text: i.note || "–" }),
+      el("div", { class: "muted small", text: "Заметка без уровня: сканер по ней агента не разбудит." }), el("details", { class: "fold-in" }, el("summary", { text: "Подробнее" }), ideaDetail(i)));
+  }
+  var card = el("article", { class: "icard" + (i.zone ? " is-near" : "") },
+    head(),
+    el("div", { class: "ic-main" },
+      el("div", { class: "ic-goal" }, el("div", { class: "ic-lab", text: "Ждём цену у уровня" }), el("div", { class: "ic-lvl", text: i.level != null ? price(i.level) : "–" }),
+        el("div", { class: "muted small", text: isn(i.now_price) ? "сейчас " + price(i.now_price) : "цена недоступна" })),
+      el("div", { class: "ic-dist " + ph.cls }, el("div", { class: "ic-lab", text: "До уровня" }), el("div", { class: "ic-big", text: ph.big }), el("div", { class: "muted small", text: ph.cap }))),
+    ladder(i),
+    el("div", { class: "lad-leg small" },
+      el("span", { class: "lg lg-stop", text: "стоп " + price(i.stop) + (risk != null ? " (риск " + fx(risk, 2) + "%)" : "") }),
+      el("span", { class: "lg lg-level", text: "уровень " + price(i.level) }),
+      el("span", { class: "lg lg-tp", text: "тейк " + price(i.tp) + (rew != null ? " (до цели " + fx(rew, 2) + "%)" : "") }),
+      rrv != null ? el("span", { class: "lg", title: "награда/риск от уровня, без издержек", text: "RR " + fx(rrv, 1) }) : null),
+    i.note ? el("p", { class: "ic-note clamp", text: i.note }) : null,
+    el("details", { class: "fold-in" }, el("summary", { text: "Подробнее" }), ideaDetail(i)));
+  return card;
+}
+function activeCards(rows) {
+  var now = Date.now() / 1000;
+  var sorted = rows.slice().sort(function (a, b) {          // ближе к уровню первыми; без цены в конец
+    var da = isn(a.dist_level_pct) ? Math.abs(a.dist_level_pct) : 1e9, db = isn(b.dist_level_pct) ? Math.abs(b.dist_level_pct) : 1e9;
+    return da - db;
+  });
+  return [el("div", { class: "icards" }, sorted.slice(0, ideaLimit).map(function (i) { return ideaCard(i, now); }))].concat(
+    sorted.length > ideaLimit ? [el("div", { class: "more-row" }, (function () {
+      var b = el("button", { type: "button", class: "btn", text: "Показать ещё " + Math.min(20, sorted.length - ideaLimit) });
+      b.addEventListener("click", function () { ideaLimit += 20; ideaSig = null; renderIdeas(); });
+      return b;
+    })())] : []);
+}
 function ideaTable(rows, taken) {
   var shown = rows.slice(0, ideaLimit);
   var tbl = el("table", { class: "rt" }, el("thead", null, el("tr", null, [["Монета", 0], ["Статус", 0], ["Когда", 0], ["Тезис", 0], [taken ? "Результат сделки" : "Что было бы (после издержек)", 1]].map(function (h) { return el("th", { class: h[1] ? "num" : "", text: h[0] }); }))));
@@ -138,5 +198,5 @@ function renderIdeas() {
     put(body, el("div", { class: "empty" }, el("b", { text: "Здесь пока пусто" }), el("span", { text: cur === "active" ? "Идея появляется, когда агент видит уровень, но входить рано: утренний разбор или пропуск с уровнем. Когда цена дойдёт до уровня, агент проверит вход и, если всё сходится, создаст план." : cur === "taken" ? "Появится, когда по идее будет подан план." : "Появится, когда идея истечёт или не сработает." })));
     return;
   }
-  put(body, ideaTable(rows, cur === "taken"));
+  put(body, cur === "active" ? activeCards(rows) : ideaTable(rows, cur === "taken"));
 }

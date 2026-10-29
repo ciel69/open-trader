@@ -227,6 +227,10 @@ class TestDashDistance(Base):
         self.assertFalse(rows["BBB"]["zone"])
         self.assertIsNone(rows["CCC"]["dist_level_pct"])
         self.assertFalse(rows["CCC"]["zone"])
+        self.assertAlmostEqual(rows["AAA"]["expires_epoch"], NOW - 60 + 6 * 3600.0, places=1)           # срок идеи для карточки: ts + ttl_h
+        self.assertAlmostEqual(rows["BBB"]["expires_epoch"], NOW - 60 + ideas.TTL_H_DEFAULT * 3600.0, places=1)
+        z = ideas.add_idea("DDD", "long", "без срока", level=1.0, now=NOW - 60, ttl_h=0)
+        self.assertIsNone({i["sym"]: i for i in model.ideas_info(self.root, NOW)["items"]}["DDD"]["expires_epoch"])
 
 
 if __name__ == "__main__":

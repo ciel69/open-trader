@@ -1047,6 +1047,14 @@ def _trade_view(t, mkt, sp, mm):
     return {"id": t["id"], "status": "open", "pnl": c.get("pnl") if c.get("has_price") else None, "r": c.get("r_now") if c.get("has_price") else None, "reason": None}
 
 
+def _idea_expires(i):
+    """Когда идея истечёт (epoch): ts_epoch + ttl_h (по умолчанию как у сторожа ideawatch); ttl 0 или нет времени записи = None."""
+    ttl = num(i.get("ttl_h"))
+    ttl = ideas_core.TTL_H_DEFAULT if ttl is None else ttl
+    t0 = num(i.get("ts_epoch"))
+    return t0 + ttl * 3600.0 if ttl > 0 and t0 is not None else None
+
+
 def ideas_info(root=None, now=None, trades=None, mm=1.0):
     """Блок «Идеи и пропущенное»: идеи агента (статусы idea/watching/taken/skipped/expired/invalidated), авто-история сканера (auto_skipped) и статистика.
     Читает state/ideas.jsonl, state/hot_outcomes.jsonl, runtime/hot_pending.json и цены из runtime/*.json; на биржу не ходит."""
@@ -1089,7 +1097,7 @@ def ideas_info(root=None, now=None, trades=None, mm=1.0):
                      "price": p0, "now_price": cur[0] if cur else None, "now_src": cur[2] if cur else None,
                      "now_age_s": max(0.0, now - cur[1]) if cur and cur[1] else None, "shift_pct": shift,
                      "shift_dir_pct": shift * sign if shift is not None and sign else None, "mark_notes": i.get("mark_notes") or [],
-                     "trade_id": i.get("trade"), "plan_id": i.get("plan"), "trade": _trade_view(tr, mkt, sp, mm) if tr else None,
+                     "ttl_h": num(i.get("ttl_h")), "expires_epoch": _idea_expires(i), "trade_id": i.get("trade"), "plan_id": i.get("plan"), "trade": _trade_view(tr, mkt, sp, mm) if tr else None,
                      "outcomes": {str(h): v for h, v in (outs.get(i["id"]) or {}).items()}})
     counts = {k: 0 for k in ideas_core.STATUSES}
     for i in ideas_core.load_ideas(root):

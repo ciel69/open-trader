@@ -838,6 +838,27 @@ body.st-lock { overflow: hidden; }
 .st-seg button { padding: 7px 2px; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-seg button.on.live { background: var(--bad); color: var(--on-bad); box-shadow: none; }
 .st-hint { margin: 8px 2px 0; min-height: 1.4em; }
+
+/* ===== идеи: карточки «Ждут уровня» ===== */
+.icards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 12px; }
+.icard { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.icard.is-near { border-color: var(--warn); }
+.ic-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ic-sym { font-size: 16px; }
+.ic-ttl { margin-left: auto; }
+.ic-main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ic-lab { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.ic-lvl, .ic-big { font-size: 20px; font-weight: 650; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.ic-dist.near .ic-big { color: var(--warn); }
+.ic-dist.close .ic-big { color: var(--accent); }
+.lad-bar { position: relative; height: 8px; border-radius: 99px; background: var(--track); margin: 4px 6px 0; }
+.lad-mk { position: absolute; top: -3px; width: 3px; height: 14px; margin-left: -1px; border-radius: 2px; background: var(--muted); }
+.lad-stop { background: var(--neg); } .lad-tp { background: var(--pos); } .lad-level { background: var(--accent); }
+.lad-now { top: -2px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--text); border: 2px solid var(--panel); }
+.lad-leg { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lg::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; background: var(--muted); }
+.lg-stop::before { background: var(--neg); } .lg-tp::before { background: var(--pos); } .lg-level::before { background: var(--accent); }
+.ic-note { margin: 0; font-size: 13px; color: var(--text); }
 .st-line { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 .st-line .st-fl { flex: none; }
 .st-modal .st-line input[type=text] { width: 84px; flex: none; text-align: right; padding: 6px 10px; border-radius: 8px; }
