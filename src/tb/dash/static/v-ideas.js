@@ -1,9 +1,10 @@
 "use strict";
 // Вкладка «Идеи»: статусы идей агента (Взято / Наблюдаем / Идеи / Пропущено) и авто-история сканера со статистикой.
 
-var IDEA_TABS = [["taken", "Взято", ["taken"]], ["watching", "Наблюдаем", ["watching"]], ["idea", "Идеи", ["idea"]],
-  ["skipped", "Пропущено", ["skipped", "expired", "invalidated"]], ["auto", "Авто-история", null]];
-var STATUS_RU = { idea: "идея", watching: "наблюдаем", taken: "взято", skipped: "пропущено", expired: "устарела", invalidated: "сломана", auto_skipped: "авто" };
+// Воронка: идея (цены у уровня ещё нет) -> цена у уровня, агент проверяет -> ПЛАН (вкладка «Планы», его ведёт исполнитель) -> сделка. Здесь только первый шаг и итог.
+var IDEA_TABS = [["active", "Ждут уровня", ["watching", "idea"]], ["taken", "Стали сделкой", ["taken"]],
+  ["skipped", "Не сработали", ["skipped", "expired", "invalidated"]], ["auto", "Авто-история", null]];
+var STATUS_RU = { idea: "заметка", watching: "ждём уровень", taken: "стала сделкой", skipped: "пропущена", expired: "истекла", invalidated: "тезис сломан", auto_skipped: "авто" };
 var ideaLimit = 10;
 var autoLimit = 8;
 
@@ -115,7 +116,7 @@ function renderIdeas() {
   var I = S.ideas;
   if (!I) { put("idea-tabs", ""); put("idea-body", ""); return; }
   // вкладка по умолчанию (первая непустая) в URL не пишется: хэш хранит только выбор пользователя
-  var cur = IDEA_TABS.some(function (t) { return t[0] === ui.it; }) ? ui.it : (IDEA_TABS.filter(function (t) { return t[2] && tabCount(I, t) > 0; })[0] || IDEA_TABS[4])[0];
+  var cur = IDEA_TABS.some(function (t) { return t[0] === ui.it; }) ? ui.it : (IDEA_TABS.filter(function (t) { return t[2] && tabCount(I, t) > 0; })[0] || IDEA_TABS[3])[0];
   var A = I.stats.agent;
   var sum = [
     { id: "a", t: statTile("Идей агента", null, String(A.total), "", "по статусам во вкладках ниже") },
@@ -132,7 +133,7 @@ function renderIdeas() {
   if (!tab[2]) { put(body, autoPanel(I)); return; }
   var rows = I.items.filter(function (i) { return tab[2].indexOf(i.status) >= 0; });
   if (!rows.length) {
-    put(body, el("div", { class: "empty" }, el("b", { text: "Здесь пока пусто" }), el("span", { text: "Агент записывает идею: ./tb ideas add SYM --side long --note \"..\"; взято: ./tb ideas mark ID --status taken --trade ID_СДЕЛКИ." })));
+    put(body, el("div", { class: "empty" }, el("b", { text: "Здесь пока пусто" }), el("span", { text: cur === "active" ? "Идея появляется, когда агент видит уровень, но входить рано: утренний разбор или пропуск с уровнем. Когда цена дойдёт до уровня, агент проверит вход и, если всё сходится, создаст план." : "Появится, когда идея станет сделкой или истечёт." })));
     return;
   }
   put(body, ideaTable(rows, cur === "taken"));
