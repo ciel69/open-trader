@@ -205,6 +205,25 @@ class TestBoard(Fx):
         self.assertIn("прокол", t["text"])
         self.assertEqual(t["met_n"], 1)                            # c1 (объём) защёлкнут исполнителем
 
+    def test_candle_condition_with_price_already_beyond_level(self):
+        """Цена уже за уровнем (расстояние ~0), но условие свечное: карточка помечает beyond и тип условия, чтобы не выглядело как «сработало, а входа нет»."""
+        s = gen.spec("PL-1028-SOL-22", "SOL", "long", NOW, entry={"when": {"kind": "candle_close", "tf": "5m", "dir": "above", "level": 142.0}, "how": {"type": "market"},
+                                                                  "valid": {"ttl_min": 30}})
+        self.put("state/plans/PL-1028-SOL-22/spec.json", s)
+        self.put("state/plans/PL-1028-SOL-22/runtime.json", gen.rt("PL-1028-SOL-22", "armed", NOW))
+        t = self.card("PL-1028-SOL-22")["trigger"]
+        self.assertEqual((t["kind"], t["dir"], t["beyond"], t["eta_tf"]), ("candle_close", "above", True, "5м"))
+
+    def test_chase_blocked_card_reports_distance_and_tolerance(self):
+        s = gen.spec("PL-1028-SOL-23", "SOL", "long", NOW, entry={"when": {"kind": "candle_close", "tf": "5m", "dir": "above", "level": 142.0}, "how": {"type": "market"},
+                                                                  "ref_price": 142.0, "valid": {"ttl_min": 30}})
+        self.put("state/plans/PL-1028-SOL-23/spec.json", s)
+        self.put("state/plans/PL-1028-SOL-23/runtime.json", gen.rt("PL-1028-SOL-23", "armed", NOW, entry={"state": "blocked", "blocked_why": "CHASE", "attempts": 0}))
+        c = self.card("PL-1028-SOL-23")
+        self.assertEqual(c["blocked_why"], "CHASE")
+        self.assertAlmostEqual(c["chase_bps"], (142.31 - 142.0) / 142.0 * 1e4, places=0)
+        self.assertEqual(c["chase_max_bps"], 15.0)
+
     def test_latched_leaf_counts_as_met(self):
         self.assertEqual(self.card(P1)["trigger"]["leaf_n"], 2)
         # c1 = объёмное условие защёлкнуто исполнителем -> не «не хватает»

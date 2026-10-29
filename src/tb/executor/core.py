@@ -66,6 +66,9 @@ def new_runtime(now):
             "actions": {"seq": 0, "pending": []}, "counters": {"stop_moves_1h": [], "blocked_attempts": 0}, "paper": False}
 
 
+MIN_SIZE_TTL_S = exec_cfg.MIN_SIZE_TTL_S
+
+
 class Executor(object):
     def __init__(self, port, root=None, clock=time.time, sleep=None, profile="testnet", observe=False, cfg=None, keep_entries=False, venue_id="bybit"):
         self.port = port
@@ -749,11 +752,44 @@ class Executor(object):
         if entry and vd.code not in G.TRANSIENT:
             self._entry_blocked(p, vd.code, vd.detail)
 
+    def _note_min_size(self, sym, now):
+        """Запоминает монету, на которой размер по риску не дотянул до минимального лота (runtime/min_size.json: {монета: ts}); досье мозга по ней не предлагает входы
+        MIN_SIZE_TTL_S. Сбой записи не мешает торговле."""
+        try:
+            from tb.core.filelock import atomic_write_json
+            path = paths.runtime("min_size.json", root=self.root)
+            try:
+                with open(path, encoding="utf-8") as f:
+                    d = json.load(f)
+            except (OSError, ValueError):
+                d = {}
+            d = {k: v for k, v in (d if isinstance(d, dict) else {}).items() if isinstance(v, (int, float)) and now - v < MIN_SIZE_TTL_S}
+            d[sym] = round(now, 1)
+            atomic_write_json(path, d)
+        except Exception:
+            pass
+
     def _entry_blocked(self, p, why, detail):
         """Вход не состоялся (попытка): счётчик, событие entry_blocked, исчерпание попыток -> invalidated ENTRY_BLOCKED."""
         spec, rt = p["spec"], p["rt"]
         ent = rt["entry"]
         now = self.clock()
+        if why == "CHASE":
+            # цена ушла от уровня дальше допуска: это не провал входа. План остаётся armed, вход повторяется каждые retry_after_s и пройдёт при откате к уровню;
+            # от убегания цены защищают cancel_above и TTL. В попытки (blocked_attempts_max) не считается, событие и запись решения не чаще раза в 5 минут.
+            ent["chase_n"] = int(ent.get("chase_n") or 0) + 1
+            ent["last_attempt"] = round(now, 3)
+            ent["blocked_why"] = why
+            ent["state"] = "blocked"
+            self.save(p)
+            key = (spec["id"], "chase_log")
+            if now - self.alerts.get(key, 0.0) >= 300.0:
+                self.alerts[key] = now
+                self.emit("entry_blocked", {"why": "CHASE", "attempt": ent["chase_n"]}, plan=spec["id"], sym=spec["symbol"])
+                self.decide("skip", "place_entry", plan=spec["id"], res={"ok": False, "code": why}, why="BLOCKED:CHASE цена дальше допуска от уровня, ждём отката")
+            return
+        if why == "MIN_SIZE":
+            self._note_min_size(spec["symbol"], now)
         ent["attempts"] = int(ent.get("attempts") or 0) + 1
         rt.setdefault("counters", {})["blocked_attempts"] = ent["attempts"]
         ent["last_attempt"] = round(now, 3)

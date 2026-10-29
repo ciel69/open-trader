@@ -45,7 +45,8 @@ function waitingBlock(p) {
   if (!t || !(p.status === "armed" || p.status === "draft")) return null;
   var lvl = planEntryRef(p), d = isn(t.dist_pct) ? t.dist_pct : null, px = isn(t.price) ? t.price : p.price;
   var dir = isn(px) && isn(lvl) ? (px > lvl ? "↓ " : px < lvl ? "↑ " : "") : "";
-  var cap = d == null ? "расстояние неизвестно" : d <= 0.3 ? "цена у уровня" : dir === "↓ " ? "цена выше уровня, ждём снижения" : dir === "↑ " ? "цена ниже уровня, ждём роста" : "до условия входа";
+  var candleWait = t.beyond === true && /^(candle|volume)/.test(t.kind || "");      // цена уже за уровнем, но вход ждёт закрытия свечи, а не касания
+  var cap = candleWait ? "цена уже за уровнем, вход сработает по закрытию " + (t.eta_tf || "") + "-свечи" : d == null ? "расстояние неизвестно" : d <= 0.3 ? "цена у уровня" : dir === "↓ " ? "цена выше уровня, ждём снижения" : dir === "↑ " ? "цена ниже уровня, ждём роста" : "до условия входа";
   var meta = [];
   if (isn(t.eta_s)) meta.push(el("span", null, "свеча " + t.eta_tf + " закроется через ", tk("eta:" + p.id, t.eta_s, "left")));
   if (t.missing && t.missing.length > 1) meta.push(el("span", { class: "muted", title: t.missing.join("; "), text: "не хватает условий: " + t.missing.length }));
@@ -53,13 +54,16 @@ function waitingBlock(p) {
   var chips = [];
   if (t.seq) chips.push(el("span", { class: "chip", text: "шаг " + Math.min(t.seq.done + 1, t.seq.total) + " из " + t.seq.total }));
   if (p.entry_state === "resting") chips.push(chip("лимит стоит на бирже", "ok"));
-  if (p.entry_state === "blocked") chips.push(chip("вход заблокирован" + (p.blocked_why ? ": " + p.blocked_why : ""), "bad"));
+  if (p.entry_state === "blocked" && p.blocked_why === "CHASE") {
+    chips.push(chip(isn(p.chase_bps) ? "ждём отката: цена на " + fx(p.chase_bps / 100, 2) + "% дальше уровня, допуск " + fx((p.chase_max_bps || 0) / 100, 2) + "%" : "ждём отката: цена дальше допуска от уровня", "warn",
+      "Условие входа выполнено, но цена ушла от уровня дальше допуска (защита от входа вдогонку). План не отменяется: вход повторяется каждые 15 с и пройдёт при откате; от убегания цены защищают cancel_above и срок плана."));
+  } else if (p.entry_state === "blocked") chips.push(chip("вход заблокирован" + (p.blocked_why ? ": " + p.blocked_why : ""), "bad"));
   return el("div", { class: "pl-viz" },
     el("div", { class: "ic-main" },
       el("div", null, el("div", { class: "ic-lab", text: "Вход у" }), el("div", { class: "ic-lvl", text: isn(lvl) ? price(lvl) : "по условию" }),
         el("div", { class: "muted small", text: isn(px) ? "сейчас " + price(px) : "цены нет" })),
       el("div", { class: d != null && d <= 0.3 ? "ic-dist near" : "ic-dist" }, el("div", { class: "ic-lab", text: "До триггера" }),
-        el("div", { class: "ic-big", text: d == null ? "–" : (d <= 0.3 ? "" : dir) + pc(d, 2) }), el("div", { class: "muted small", text: cap }))),
+        el("div", { class: "ic-big", text: candleWait ? "ждём свечу" : d == null ? "–" : (d <= 0.3 ? "" : dir) + pc(d, 2) }), el("div", { class: "muted small", text: cap }))),
     planLadder(p, lvl, px), planLegend(p, lvl, "вход"),
     meta.length ? el("div", { class: "pl-meta small" }, meta) : null, chips.length ? el("div", { class: "chips tight" }, chips) : null);
 }

@@ -72,6 +72,35 @@ class CoreCycle(unittest.TestCase):
         self.assertEqual(ex._close_reason(p, [no_type, tp_fill], avg), "sl")       # без stop_type: цена последнего фрагмента у стопа
         self.assertEqual(ex._close_reason(p, [tp_fill], 0.02641), "manual")        # единственный фрагмент вдали от стопа и без ссылки на цель: ручное
 
+    def test_chase_block_does_not_count_or_end_plan(self):
+        """CHASE (цена дальше допуска) не считается попыткой и не закрывает план; событие и запись решения не чаще раза в 5 минут."""
+        r = self.e.submit()
+        p = self.e.ex.plans[r["plan_id"]]
+        for _ in range(6):
+            self.e.ex._entry_blocked(p, "CHASE", "")
+        self.assertEqual(self.e.rt(r["plan_id"])["status"], "armed")
+        ent = self.e.rt(r["plan_id"])["entry"]
+        self.assertEqual((ent["blocked_why"], ent["state"], ent.get("attempts")), ("CHASE", "blocked", 0))
+        self.assertEqual(ent["chase_n"], 6)
+        self.assertEqual(len(self.e.bus("entry_blocked")), 1)
+        self.assertEqual(len([d for d in self.e.decisions(what="place_entry")]), 1)
+
+    def test_other_blocks_still_end_plan_after_max_attempts(self):
+        r = self.e.submit()
+        p = self.e.ex.plans[r["plan_id"]]
+        for _ in range(int(self.e.ex.cfg["entry"]["blocked_attempts_max"])):
+            self.e.ex._entry_blocked(p, "SPREAD", "")
+        self.assertEqual(self.e.rt(r["plan_id"])["status"], "invalidated")
+
+    def test_min_size_block_is_remembered_for_the_brief(self):
+        import json as _json
+        from tb import paths
+        r = self.e.submit()
+        p = self.e.ex.plans[r["plan_id"]]
+        self.e.ex._entry_blocked(p, "MIN_SIZE", "qty 0.0 < min 0.001")
+        with open(paths.runtime("min_size.json", root=self.e.root), encoding="utf-8") as f:
+            self.assertIn("SOL", _json.load(f))
+
     def test_tp_both_targets(self):
         pid = self.e.enter()
         self.e.tick(104.1)

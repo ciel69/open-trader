@@ -13,6 +13,8 @@ import time
 from tb import paths
 from tb.core.filelock import atomic_write_json
 
+MIN_SIZE_TTL_S = 6 * 3600.0         # сколько брифы мозга помнят «размер по риску не дотянул до минимального лота» по монете (runtime/min_size.json)
+
 DEFAULTS = {
     "version": 1,
     "watch_symbols": [],

@@ -20,7 +20,7 @@ entry_filled: check that the stop is in place and targets exist; usually hold.
 milestone r_plus_1: move_stop "be" if the plan's rules do not do it; otherwise hold.
 milestone r_minus_05: hold; close only on invalidation by the level price.
 milestone near_target and target_filled: hold (targets are limit orders).
-entry_blocked: on a repeated CHASE, STALE or SPREAD cancel; otherwise hold.
+entry_blocked: CHASE (price ran past the entry tolerance): hold, never cancel for it; the executor retries every 15 s and enters if price comes back, cancel_above and the plan ttl already protect against a runaway. On a repeated STALE or SPREAD cancel; otherwise hold.
 action_rejected: hold, do not repeat the reason; on STOP_NOT_TIGHTER check that the stop is not already better.
 connectivity and reconcile_alert: hold_plan and escalate NEED_OWNER, do not close in a hurry (the exchange stop works).
 session_ending: scalp and intraday without a carry mark: close; swing and position: hold.

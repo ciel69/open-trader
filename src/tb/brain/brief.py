@@ -23,6 +23,7 @@ from tb import paths
 from tb.brain import common
 from tb.core import blackout
 from tb.core import bus
+from tb.core import exec_cfg
 from tb.core import ideas as ideas_core
 from tb.core import portfolio
 from tb.core import plan_schema
@@ -293,7 +294,14 @@ def _b_pause(c, syms):
     allp = None
     if streak >= 2 and last_ts is not None and PAUSE_ALL_MIN - (c.now - last_ts) / 60.0 > 0:
         allp = int(math.ceil(PAUSE_ALL_MIN - (c.now - last_ts) / 60.0))
-    return _drop_none({"syms": left or None, "all": allp, "streak": streak if streak else None})
+    root = getattr(c, "root", None)
+    ms = common.read_json(paths.runtime("min_size.json", root=root)) if root else None          # монеты, на которых исполнитель отказал по MIN_SIZE (минут осталось помнить)
+    small = {}
+    for sym, ts in (ms.items() if isinstance(ms, dict) else []):
+        mn = exec_cfg.MIN_SIZE_TTL_S / 60.0 - (c.now - ts) / 60.0 if isinstance(ts, (int, float)) else 0
+        if _sym(sym) in syms and mn > 0:
+            small[_sym(sym)] = int(math.ceil(mn))
+    return _drop_none({"syms": left or None, "all": allp, "streak": streak if streak else None, "min_size": small or None})
 
 
 def _b_paper_history(c):

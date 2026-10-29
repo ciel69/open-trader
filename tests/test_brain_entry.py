@@ -76,6 +76,15 @@ class EntrySchema(unittest.TestCase):
         self.assertTrue(check(skip(sym="SOL"))[1])
         self.assertTrue(check(propose(skip_code="other"))[1])
 
+    def test_min_size_symbol_is_prechecked_without_model(self):
+        """Монета, на которой исполнитель недавно отказал по MIN_SIZE, отсекается до модели (precheck) и в смысловой проверке."""
+        b = with_brief(pause={"min_size": {"SOL": 240}})
+        ctx = validate.entry_context(b, EV)
+        self.assertEqual(ctx["min_size_sym"], 240)
+        self.assertEqual(validate.entry_precheck(ctx), "MIN_SIZE_SYM")
+        self.assertIn("MIN_SIZE_SYM", check(propose(), b)[1])
+        self.assertIsNone(validate.entry_precheck(validate.entry_context(with_brief(pause={"min_size": {"ETH": 240}}), EV)))
+
     def test_skip_with_watch_level(self):
         """Пропуск может нести watch (уровень, стоп, цель) на будущее; порядок цен и дальность проверяются."""
         w = {"side": "long", "level": 144.0, "stop": 142.8, "tp": 147.0, "setup": "level_reclaim"}

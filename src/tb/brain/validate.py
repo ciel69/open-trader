@@ -31,7 +31,7 @@ ENTRY_TAGS = ("no-confirm", "blackout")
 ENTRY_PROPOSE_KEYS = ("sym", "side", "horizon", "level", "stop", "tp", "setup", "hypothesis", "ttl_min", "confirm", "thesis")
 ENTRY_OPTIONAL_KEYS = ("zone", "size_mult", "tags")
 ENTRY_MIN_RR = 2.0                                  # риск/прибыль брутто не ниже 2, когда в досье нет порога сессии (по средней цене целей при равных долях)
-ENTRY_PRECHECK_CODES = ("WIDE_RANGE", "DAY_NO_PLANS", "NO_SLOTS", "ROOM_CLOSED", "SYM_BUSY", "PAUSE_SYM", "PAUSE_ALL")   # отказы по данным досье без вызова модели
+ENTRY_PRECHECK_CODES = ("WIDE_RANGE", "DAY_NO_PLANS", "NO_SLOTS", "ROOM_CLOSED", "SYM_BUSY", "PAUSE_SYM", "PAUSE_ALL", "MIN_SIZE_SYM")   # отказы по данным досье без вызова модели
 ENTRY_SIZE_MULT_MAX = 0.5                           # потолок size_mult, который вообще может назвать модель (только уменьшение)
 ENTRY_MIN_STOP_PCT = 0.1                            # стоп не ближе 0.1% к уровню входа (и не ближе ATR(5м) и трёх спредов)
 ENTRY_MAX_STOP_PCT = 10.0
@@ -282,6 +282,7 @@ def entry_context(brief, event=None):
     ctx["pause_sym"] = _num((pz.get("syms") or {}).get(sym)) if sym and isinstance(pz.get("syms"), dict) else None
     ctx["pause_all"] = _num(pz.get("all"))
     ctx["stop_streak"] = _num(pz.get("streak"))
+    ctx["min_size_sym"] = _num((pz.get("min_size") or {}).get(sym)) if sym and isinstance(pz.get("min_size"), dict) else None      # исполнитель недавно отказал по MIN_SIZE
     sysd = brief.get("system") if isinstance(brief.get("system"), dict) else {}
     ctx["kill"] = sysd.get("kill") if isinstance(sysd.get("kill"), bool) else None
     ctx["exec_mode"] = (sysd.get("exec") or {}).get("mode") if isinstance(sysd.get("exec"), dict) else None
@@ -338,6 +339,8 @@ def entry_precheck(ctx):
         return "PAUSE_SYM"
     if (ctx.get("pause_all") or 0) > 0:
         return "PAUSE_ALL"
+    if (ctx.get("min_size_sym") or 0) > 0:
+        return "MIN_SIZE_SYM"                                # размер по риску не дотягивает до минимального лота монеты: план исполнитель всё равно отклонит
     return None
 
 
@@ -573,6 +576,8 @@ def _entry(o, ctx):
         errs.append("PAUSE_SYM")                             # 30 минут после стопа по монете
     if (ctx.get("pause_all") or 0) > 0:
         errs.append("PAUSE_ALL")                             # час после двух стопов подряд
+    if (ctx.get("min_size_sym") or 0) > 0:
+        errs.append("MIN_SIZE_SYM")                          # исполнитель недавно отказал по минимальному лоту монеты
     return errs[:8]
 
 

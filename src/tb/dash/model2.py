@@ -204,8 +204,11 @@ def _leaves(c, out=None, depth=0):
 def _leaf_state(c, price, now, met_flag):
     """Состояние одного листа условия по текущей цене: {met, text, dist_pct, level, eta_s, tf}."""
     k = c.get("kind")
-    out = {"text": describe_cond(c), "met": met_flag, "dist_pct": None, "level": None, "eta_s": None, "tf": None, "kind": k}
+    out = {"text": describe_cond(c), "met": met_flag, "dist_pct": None, "level": None, "eta_s": None, "tf": None, "kind": k, "dir": None, "beyond": None}
     lvl = _n(c.get("level"))
+    if lvl is not None and price and c.get("dir") in ("above", "below"):       # цена уже по нужную сторону уровня (для свечных условий этого мало: нужно закрытие свечи)
+        out["dir"] = c["dir"]
+        out["beyond"] = price >= lvl if c["dir"] == "above" else price <= lvl
     if k == "price_in_zone":
         lo, hi = _n(c.get("low")), _n(c.get("high"))
         if lo is not None and hi is not None and price:
@@ -265,6 +268,7 @@ def trigger_info(spec, rt, price, now):
             info["level"] = best["level"]
             info["eta_s"], info["eta_tf"] = best["eta_s"], best["tf"]
             info["text"] = best["text"]
+            info["kind"], info["dir"], info["beyond"] = best["kind"], best["dir"], best["beyond"]
         elif sts:
             info["text"] = "условия выполнены, идёт попытка входа"
     elif lim is not None:
@@ -439,7 +443,16 @@ def _prev_stop(rt):
     return _n(_d(rt.get("pos")).get("cur_stop"))
 
 
-def plan_card(item, mkt, sp, levels, snap, now):
+def _chase_cap(root):
+    """Допуск входа вдогонку из config/exec_limits.json (entry.max_chase_bps, б.п.); нет файла или сбой -> умолчание 15."""
+    try:
+        from tb.core import exec_cfg
+        return float(exec_cfg.load(root)["entry"]["max_chase_bps"])
+    except Exception:
+        return 15.0
+
+
+def plan_card(item, mkt, sp, levels, snap, now, chase_cap=15.0):
     spec, rt = item["spec"], item["rt"]
     sym = _s(spec.get("symbol"), 20)
     side = spec.get("side") if spec.get("side") in ("long", "short") else None
@@ -469,6 +482,13 @@ def plan_card(item, mkt, sp, levels, snap, now):
     realized = _d(rt.get("realized"))
     hold = rt.get("hold")
     ent = _d(rt.get("entry"))
+    chase_bps = chase_max = None
+    if status == "armed" and ent.get("blocked_why") == "CHASE" and price and side:             # вход заблокирован: цена дальше допуска от уровня
+        ref = _n(_d(spec.get("entry")).get("ref_price")) or _n(ent.get("ref_px")) or trig.get("level")
+        mine = _n(_d(_d(spec.get("entry")).get("valid")).get("max_chase_bps"))
+        chase_max = min(chase_cap, mine) if mine is not None else chase_cap
+        if ref:
+            chase_bps = _rn((price - ref) / ref * 1e4 * (1 if side == "long" else -1), 1)
     return {
         "id": item["id"], "sym": sym, "side": side, "mode": spec.get("mode") if spec.get("mode") in ("live", "paper") else ("paper" if rt.get("paper") else "live"),
         "status": status, "col": col, "rev": int(_n(spec.get("rev")) or 1), "rev_applied": _n(rt.get("rev_applied")),
@@ -477,7 +497,7 @@ def plan_card(item, mkt, sp, levels, snap, now):
         "thesis": _s(spec.get("thesis"), 280), "session_type": _s(spec.get("session_type"), 12) or None,
         "entry_text": entry_text(spec), "trigger": trig, "price": price, "price_stale": bool(stale) if price else None, "price_age_s": _rn(page, 1),
         "ttl_left_s": _rn(ttl_left, 0), "hold": _s(hold, 40) if hold else None, "hold_reason": _s(rt.get("hold_reason"), 80) or None,
-        "entry_state": _s(ent.get("state"), 12) or None, "blocked_why": _s(ent.get("blocked_why"), 40) or None,
+        "entry_state": _s(ent.get("state"), 12) or None, "blocked_why": _s(ent.get("blocked_why"), 40) or None, "chase_bps": chase_bps, "chase_max_bps": chase_max,
         "stop": _n(_d(spec.get("stop")).get("price")), "targets": targets,
         "risk_usdt": _rn(gp.get("risk_usdt"), 3), "net_rr": _rn(gp.get("net_rr"), 2), "leverage": _n(gp.get("leverage")), "margin": _rn(gp.get("margin"), 2),
         "warnings": warns[:6], "ts_created": _epoch(ts.get("created")) or _epoch(spec.get("created_ts")), "ts_armed": _epoch(ts.get("armed")) or _epoch(spec.get("armed_ts")),
@@ -829,7 +849,8 @@ def v2_state(root=None, now=None, mkt=None, sp=None, scan=None, sess_view=None):
     items, broken = read_plans(root)
     events = read_events(root)
     backlog = backlog_info(events, read_cursors(root), now)
-    cards = [plan_card(it, mkt, sp, levels, snap, now) for it in items]
+    cap = _chase_cap(root)
+    cards = [plan_card(it, mkt, sp, levels, snap, now, cap) for it in items]
     by_id = {it["id"]: it for it in items}
     modes = {c["id"]: c["mode"] for c in cards}
     decs = [decision_row(r, modes) for r in read_decisions(root)]
@@ -869,7 +890,8 @@ def plans_list(root, status=None, mode=None, now=None):
     mkt, sp = _ctx(root, now)
     levels, snap = _read_levels(root), read_snapshot(root, now)
     items, broken = read_plans(root)
-    cards = [plan_card(it, mkt, sp, levels, snap, now) for it in items]
+    cap = _chase_cap(root)
+    cards = [plan_card(it, mkt, sp, levels, snap, now, cap) for it in items]
     want = {s for s in (status or "").split(",") if s}
     cards = [c for c in cards if (not want or c["status"] in want) and (mode in (None, "", "all") or c["mode"] == mode)]
     return {"plans": cards[:PLANS_LIMIT], "total": len(cards), "broken": broken}
@@ -926,7 +948,7 @@ def plan_detail(root, pid, now=None):
         revs.append({"rev": int(_n(r.get("rev")) or 0), "ts": _s(r.get("ts"), 24), "why": _s(r.get("why") or r.get("reason"), 200), "by": _s(r.get("by") or r.get("actor"), 16),
                      "changes": ch})
     mkt, sp = _ctx(root, now)
-    card = plan_card({"id": pid, "spec": spec, "rt": rt, "mtime": None}, mkt, sp, _read_levels(root), read_snapshot(root, now), now)
+    card = plan_card({"id": pid, "spec": spec, "rt": rt, "mtime": None}, mkt, sp, _read_levels(root), read_snapshot(root, now), now, _chase_cap(root))
     decs = [decision_row(r, {pid: card["mode"]}) for r in read_decisions(root) if r.get("plan") == pid][-120:]
     evs = [event_row(e) for e in read_events(root) if e.get("plan") == pid][-40:]
     return 200, {"id": pid, "card": card, "spec": spec, "runtime": rt, "revs": revs, "decisions": decs[::-1], "events": evs[::-1]}
