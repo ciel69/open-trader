@@ -782,7 +782,7 @@ _reg(Tool("get_brief", "Compact decision brief (JSON, token-budgeted). scope=sta
            "sym": _s("For scope=event: symbol of the job; it goes first in struct/levels.", 20, pattern=common.RE_SYMBOL.pattern),
            "budget_tokens": _i("Approximate token budget 200..6000.", 200, 6000)}, "read", h_brief,
           out=("brief_id", "ts", "scope", "trunc", "cut", "system", "account", "session", "room", "positions", "plans", "pending", "market", "hot",
-               "ideas", "levels", "struct", "struct_missing", "day", "limits", "risk_level", "economics", "experiments", "paper_history", "pause", "flash", "playbook", "intel", "news_digest", "recent", "since_last", "lessons", "memory", "checklist",
+               "ideas", "levels", "struct", "struct_missing", "day", "limits", "risk_level", "economics", "experiments", "paper_history", "pause", "flash", "flow", "playbook", "intel", "news_digest", "recent", "since_last", "lessons", "memory", "checklist",
                "plan", "plans_bad", "missing")))
 _reg(Tool("get_events", "Read bus events (whitelisted fields, no third-party text) without waiting. By default events after the last acked seq (unacked ones are "
           "re-delivered). Does not acknowledge: call ack_events after handling.",

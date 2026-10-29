@@ -140,6 +140,12 @@ class Publisher(object):
         kind = d.get("kind") or ""
         if kind.startswith("idea_") and kind not in ("idea_near", "idea_level"):
             return
+        if (self.cfg.get("flow") or {}).get("enabled", True):          # то же для потока ордерфлоу: сделки и стакан монеты сигнала к приходу мозга уже копятся
+            try:
+                from tb.marketdata import flowwatch
+                flowwatch.request(self.root, [sym], now)
+            except Exception:
+                pass
         if not (self.cfg.get("structure") or {}).get("enabled", True):
             return
         try:

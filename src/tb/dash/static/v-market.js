@@ -26,7 +26,7 @@ function renderMarket() {
       var pbs = Object.keys(r.prices_by_src || {}).map(function (k) { return k + " " + price(r.prices_by_src[k]); }).join(" · ");
       td.appendChild(kvgrid([["Доходность 1 мин", retc(r.ret_1m), cls(r.ret_1m)], ["Доходность 15 мин", retc(r.ret_15m), cls(r.ret_15m)],
         ["Волатильность 5 мин", isn(r.rv_5m) ? fx(r.rv_5m * 100, 2) + "%" : "ждёт истории"], ["Волатильность 1 ч", isn(r.rv_1h) ? fx(r.rv_1h * 100, 2) + "%" : "ждёт истории"],
-        ["Спред", isn(r.spread_bps) ? fx(r.spread_bps, 2) + " б.п." : "–"], ["Перекос стакана", isn(r.imbalance) ? fx(r.imbalance, 2) : "–"],
+        ["Спред", isn(r.spread_bps) ? fx(r.spread_bps, 2) + " б.п." : "–"], ["Перекос top-5 уровней (фид; для агента и карты: «Стакан» в тепловой карте)", isn(r.imbalance) ? fx(r.imbalance, 2) : "–"],
         ["Funding в час", isn(r.funding_hourly) ? fx(r.funding_hourly * 100, 4) + "%" : "–"], ["Откр. интерес, 5 мин", isn(r.oi_chg_5m) ? spc(r.oi_chg_5m * 100, 2) : "–"],
         ["Цены по источникам", pbs || "–"], ["Источник цены", r.src || "–"]]));
     });

@@ -209,6 +209,64 @@ class Files(unittest.TestCase):
         self.assertEqual(d3["xex_bps"], -18.4)
 
 
+class BriefAndRequests(Files):
+    def write_flow(self, ts, syms):
+        with open(paths.runtime("flow.json", root=self.root), "w", encoding="utf-8") as f:
+            json.dump({"ts_epoch": ts, "xex_ok": True, "syms": syms}, f)
+
+    def test_flow_for_compact_fresh_and_only_stable_walls(self):
+        from tb.core import flowdoc
+        self.write_flow(NOW, [{"sym": "SOL", "cvd_5m_pct": -22.5, "cvd_1m_usd": -50000, "big_5m_usd": -120000, "imb_pct": 14.0, "spread_bps": 0.9, "xex_bps": 1.5, "warm_s": 240,
+                               "walls": [{"side": "bid", "usd": 900000, "dist_pct": 0.1, "stable": True}, {"side": "ask", "usd": 700000, "dist_pct": 0.2, "stable": False},
+                                         {"side": "ask", "usd": 650000, "dist_pct": 0.3, "stable": True}, {"side": "ask", "usd": 600000, "dist_pct": 0.4, "stable": True}]}])
+        d = flowdoc.flow_for(self.root, "SOL", NOW + 5)
+        self.assertEqual((d["cvd_5m_pct"], d["imb_pct"], d["warm_s"], d["age_s"]), (-22.5, 14.0, 240, 5))
+        self.assertEqual([(w["side"], w["usd"]) for w in d["walls"]], [("bid", 900000), ("ask", 650000)])      # мигающая не попала, не больше двух
+        self.assertIsNone(flowdoc.flow_for(self.root, "SOL", NOW + 60))                                         # старше 30 с: данных нет
+        self.assertIsNone(flowdoc.flow_for(self.root, "ETH", NOW + 5))                                          # монеты нет в потоке
+        self.assertIsNone(flowdoc.flow_for(os.path.join(self.root, "none"), "SOL", NOW))
+
+    def test_brief_flow_block_and_market_block_use_single_source(self):
+        import types
+        from tb.brain import brief
+        self.write_flow(NOW, [{"sym": "SOL", "cvd_5m_pct": 31.0, "imb_pct": -8.0, "warm_s": 300}, {"sym": "BTC", "cvd_5m_pct": -12.0, "imb_pct": 5.0}])
+        c = types.SimpleNamespace(root=self.root, now=NOW + 3)
+        self.assertEqual(brief._b_flow(c, "SOL")["cvd_5m_pct"], 31.0)
+        self.assertIsNone(brief._b_flow(c, None))
+        self.assertIsNone(brief._b_flow(types.SimpleNamespace(root=None, now=NOW), "SOL"))
+
+    def test_request_extends_symbol_set_and_expires(self):
+        F.request(self.root, ["PEPE", "bad sym", "WIF"], NOW)
+        got = F.read_symbols(self.root, dict(F.DEFAULTS, n_syms=6), NOW + 10)
+        self.assertEqual(got[:3], ["BTC", "ETH", "SOL"])
+        self.assertEqual(sorted(got[3:]), ["PEPE", "WIF"])                         # мусорное имя отброшено, запрошенные идут перед горячими
+        self.assertEqual(F.read_symbols(self.root, dict(F.DEFAULTS), NOW + F.REQ_TTL_S + 5), ["BTC", "ETH", "SOL"])     # запрос живёт 15 минут
+        F.request(self.root, ["NEW"], NOW + F.REQ_TTL_S + 6)
+        with open(paths.runtime("flow_req.json", root=self.root), encoding="utf-8") as f:
+            self.assertEqual(list(json.load(f)), ["NEW"])                         # просроченные записи вычищены
+
+    def test_requested_come_before_hot_and_respect_cap(self):
+        with open(paths.runtime("hot.json", root=self.root), "w", encoding="utf-8") as f:
+            json.dump({"top": [{"sym": "H%d" % i, "tradable": True} for i in range(5)]}, f)
+        F.request(self.root, ["REQ"], NOW)
+        self.assertEqual(F.read_symbols(self.root, dict(F.DEFAULTS, n_syms=5), NOW + 1), ["BTC", "ETH", "SOL", "REQ", "H0"])
+
+    def test_scanner_signal_requests_flow_for_its_coin(self):
+        pub = scansvc.Publisher(self.root, {"flow": {"enabled": True}, "structure": {"enabled": False}}, os.path.join(self.root, "runtime", "hot_events.jsonl"), emit=lambda *a: None)
+        pub.publish({"kind": "range_5m", "px": 1.0, "wake": True}, "INIT", NOW)
+        self.assertIn("INIT", F.read_symbols(self.root, F.DEFAULTS, NOW + 1))
+        off = scansvc.Publisher(self.root + "_x", {"flow": {"enabled": False}, "structure": {"enabled": False}}, os.path.join(self.root, "runtime", "hot_events2.jsonl"), emit=lambda *a: None)
+        off.publish({"kind": "range_5m", "px": 1.0, "wake": True}, "WLD", NOW)
+        self.assertNotIn("WLD", F.read_symbols(self.root, F.DEFAULTS, NOW + 1))
+
+    def test_snapshot_reports_warm_seconds(self):
+        fb = F.FlowBook()
+        fb.handle(trades("X", [(0, "Buy", 1, 100.0)]), NOW)
+        fb.handle(trades("X", [(90, "Sell", 1, 100.0)]), NOW + 90)
+        row = fb.snapshot(NOW + 100)["syms"][0]
+        self.assertEqual(row["warm_s"], 100)
+
+
 class FakeClient(object):
     def __init__(self, url, msgs):
         self.url, self.msgs, self.sent, self.connected, self.subscriptions, self.closed = url, msgs, [], True, [], False

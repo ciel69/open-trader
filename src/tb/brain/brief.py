@@ -314,6 +314,14 @@ def _b_flash(c, sym):
     return rows or None
 
 
+def _b_flow(c, sym):
+    """Ордерфлоу монеты события (поток flowwatch): перекос агрессии CVD за 5 минут, перекос стакана, устойчивые стены, разрыв с Binance, прогрев ленты. Только числа. Нет данных -> None."""
+    if not sym or not getattr(c, "root", None):
+        return None
+    from tb.core import flowdoc
+    return flowdoc.flow_for(c.root, sym, c.now)
+
+
 def _b_playbook(c, b, sym):
     """Карточки сетапов (brain/playbook.py) по сигналам события и режиму монеты: 1-2 карточки с условием входа, стопом, целью, инвалидацией и тем, чего избегать. Нет карточек -> None."""
     if not sym or not getattr(c, "root", None):
@@ -600,6 +608,13 @@ def _b_market(c):
                                    "ret_15m_pct": None if f15 is None else round(f15 * 100, 3), "rv_5m_pct": None if rv is None else round(rv * 100, 3),
                                    "spread_bps": _r(book.get("spread_bps"), 2), "funding_8h_pct": None if fh is None else round(fh * 8 * 100, 4),
                                    "regime": common.ident(s.get("regime"))})
+            try:                    # агрессия и перекос стакана по BTC/ETH из потока flowwatch (единственный источник для агента: цифры фида market.json в бриф не идут)
+                from tb.core import flowdoc
+                fl = flowdoc.flow_for(c.root, name, c.now) if getattr(c, "root", None) else None
+            except Exception:
+                fl = None
+            if fl:
+                out[key].update(_drop_none({"cvd_5m_pct": fl.get("cvd_5m_pct"), "imb_pct": fl.get("imb_pct")}))
             st = ((_struct_doc(c) or {}).get("symbols") or {}).get(name)
             if isinstance(st, dict) and out[key].get("regime") in (None, "unknown") and st.get("reg") in _STRUCT_REG and st["reg"] != "unknown":
                 out[key]["regime"], out[key]["regime_src"] = st["reg"], "1h"          # фид ещё не прогрет (EMA из тиков): режим по свечам 1ч из structure.json
@@ -1137,7 +1152,7 @@ def _trim_struct(b):
 
 
 TRIM_STEPS = (
-    ("lessons", _drop("lessons")), ("missing", _drop("missing")), ("memory", _drop("memory")), ("playbook", _drop("playbook")), ("since_last", _drop("since_last")), ("paper_history", _drop("paper_history")), ("checklist_text", _checklist_ids), ("recent>5", _trim_recent(5)),
+    ("lessons", _drop("lessons")), ("missing", _drop("missing")), ("memory", _drop("memory")), ("playbook", _drop("playbook")), ("flow", _drop("flow")), ("since_last", _drop("since_last")), ("paper_history", _drop("paper_history")), ("checklist_text", _checklist_ids), ("recent>5", _trim_recent(5)),
     ("hot>3", _trim_hot(3)), ("ideas>4", _trim_ideas(4)), ("struct>3", _trim_struct), ("levels", _trim_levels), ("recent>3", _trim_recent(3)), ("pending", _drop("pending")),
     ("hot", _drop("hot")), ("ideas", _drop("ideas")), ("experiments", _drop("experiments")), ("struct", _drop("struct")), ("news_digest", _drop("news_digest")), ("intel", _drop("intel")), ("recent>1", _trim_recent(1)), ("checklist", _drop("checklist")), ("market", _drop("market")),
     ("recent", _drop("recent")),
@@ -1242,6 +1257,7 @@ def build(scope="start", since=None, budget_tokens=None, root=None, now=None, co
             b["plans"] += [x for x in plans if x.get("sym") in syms and x.get("id") not in have][:3]
         b["pause"] = _safe("pause", lambda: _b_pause(c, syms), missing) if syms else None
         b["flash"] = _safe("flash", lambda: _b_flash(c, job_sym), missing) if job_sym else None
+        b["flow"] = _safe("flow", lambda: _b_flow(c, job_sym), missing) if job_sym else None
         sig = next((e for e in reversed(b["recent"] or []) if e.get("type") in ("scanner_signal", "news_flash") and job_sym and e.get("sym") == job_sym), None)
         sd = (sig or {}).get("d") if isinstance((sig or {}).get("d"), dict) else {}
         sfeats = {k: float(sd[k]) for k in ("range_5m_pct", "ret_5m_pct") if isinstance(sd.get(k), (int, float)) and not isinstance(sd.get(k), bool)}

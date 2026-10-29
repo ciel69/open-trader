@@ -22,12 +22,13 @@ from collections import deque
 
 from tb import fsutil, paths
 
-DEFAULTS = {"enabled": True, "env": "mainnet", "n_syms": 12, "always": ["BTC", "ETH", "SOL"], "depth": 200, "publish_s": 2.0, "resync_s": 120.0,
+DEFAULTS = {"enabled": True, "env": "mainnet", "n_syms": 16, "always": ["BTC", "ETH", "SOL"], "depth": 200, "publish_s": 2.0, "resync_s": 30.0,
             "div_ret_pct": 0.25, "div_cvd_pct": 12.0, "min_flow_usd": 300000.0, "big_usd": 100000.0,
             "imb_range_pct": 0.5, "wall_mult": 6.0, "min_wall_usd": 400000.0, "wall_range_pct": 1.0, "persist_s": 30.0,
             "cooldown_s": 900.0, "max_loud_per_hour": 4, "wall_wake_score": 2.5, "xex": True, "xex_s": 5.0, "xex_gap_bps": 12.0, "xex_confirm": 2}
 URLS = {"mainnet": "wss://stream.bybit.com/v5/public/linear", "testnet": "wss://stream-testnet.bybit.com/v5/public/linear"}
 BINANCE_URL = "https://fapi.binance.com/fapi/v1/ticker/bookTicker"
+REQ_TTL_S = 900.0            # сколько монета остаётся в наборе после запроса (сигнал скана по ней)
 SUFFIX = "USDT"
 
 
@@ -174,6 +175,10 @@ class Tape(object):
             ref = self.px[0][1]
         return 100.0 * (self.px[-1][1] / ref - 1.0) if ref else None
 
+    def span(self, now):
+        """Сколько секунд ленты накоплено (до keep_s): меньше 120 с CVD неполный."""
+        return max(0.0, now - self.t[0][0]) if self.t else 0.0
+
     def prune(self, now):
         while self.t and now - self.t[0][0] > self.keep_s:
             self.t.popleft()
@@ -274,7 +279,7 @@ class FlowBook(object):
             w1, w5 = tape.window(now, 60.0, c["big_usd"]), tape.window(now, 300.0, c["big_usd"])
             row = {"sym": sym, "px": tape.last or bk.mid(), "cvd_1m_usd": round(w1["net"]), "cvd_5m_usd": round(w5["net"]), "cvd_5m_pct": round(w5["pct"], 1),
                    "buy_5m_usd": round(w5["buy"]), "sell_5m_usd": round(w5["sell"]), "big_5m_usd": round(w5["big_net"]), "big_5m_n": w5["big_n"],
-                   "ret_5m_pct": tape.ret(now, 300.0)}
+                   "ret_5m_pct": tape.ret(now, 300.0), "warm_s": int(min(300.0, tape.span(now)))}
             im = bk.imbalance(c["imb_range_pct"]) if bk.ready else None
             if im:
                 row.update({"bid_usd": round(im[0]), "ask_usd": round(im[1]), "imb_pct": round(im[2], 1), "spread_bps": round(bk.spread_bps() or 0.0, 2)})
@@ -306,9 +311,36 @@ def make_event(kind, sym, score, f, px, now, wake):
     return ev
 
 
-def read_symbols(root, cfg):
-    """BTC/ETH/SOL (always) + горячие монеты из runtime/hot.json (tradable) до n_syms."""
-    out = [s for s in cfg.get("always") or [] if isinstance(s, str)]
+def request(root, syms, now):
+    """Скан увидел сигнал по монете: просим поток держать её сделки и стакан (runtime/flow_req.json {монета: ts}, живёт REQ_TTL_S). Сбой записи не мешает сканеру."""
+    path = paths.runtime("flow_req.json", root=root)
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        d = {}
+    d = {k: v for k, v in (d if isinstance(d, dict) else {}).items() if isinstance(v, (int, float)) and now - v < REQ_TTL_S}
+    for sym in syms:
+        if isinstance(sym, str) and sym and sym.isalnum() and sym.upper() == sym:
+            d[sym] = now
+    try:
+        fsutil_write(path, d)
+    except OSError:
+        pass
+
+
+def read_symbols(root, cfg, now=None):
+    """Набор монет потока: always (BTC/ETH/SOL), затем запрошенные сканом по сигналам (новые первыми), затем горячие из runtime/hot.json (tradable); не больше n_syms."""
+    now = time.time() if now is None else now
+    out = [x for x in cfg.get("always") or [] if isinstance(x, str)]
+    try:
+        with open(paths.runtime("flow_req.json", root=root), encoding="utf-8") as f:
+            req = json.load(f)
+        for sym, ts in sorted(((k, v) for k, v in req.items() if isinstance(v, (int, float)) and now - v < REQ_TTL_S), key=lambda kv: -kv[1]):
+            if sym not in out:
+                out.append(sym)
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
     try:
         with open(paths.runtime("hot.json", root=root), encoding="utf-8") as f:
             for r in (json.load(f) or {}).get("top") or []:
@@ -316,7 +348,7 @@ def read_symbols(root, cfg):
                     out.append(r["sym"])
     except (OSError, ValueError, AttributeError, TypeError):
         pass
-    return out[:int(cfg.get("n_syms", 12))]
+    return out[:int(cfg.get("n_syms", 16))]
 
 
 def fetch_binance(timeout=5.0):
@@ -392,7 +424,7 @@ class Runner(object):
                 self.book.set_xex(sym, mids[sym], now)
 
     async def _resync(self, cl):
-        want = set(read_symbols(self.root, self.cfg))
+        want = set(read_symbols(self.root, self.cfg, self.clock()))
         add, gone = sorted(want - self.subscribed), sorted(self.subscribed - want)
         for m in self._msgs(add, "subscribe") + self._msgs(gone, "unsubscribe"):
             await cl.send(m)
