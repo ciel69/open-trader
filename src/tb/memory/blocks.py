@@ -175,8 +175,18 @@ def start_block(root, now, mode, cfg, allc=None, all_lessons=None):
 
 def event_block(root, now, mode, spec, cfg, allc=None, all_lessons=None):
     """scope=event для плана armed/draft: похожие прошлые ситуации + применимые уроки."""
-    bc = cfg.get("brief") or {}
     sym, side, setup, feats = plan_features(spec, cfg, now)
+    return _event_from(root, now, mode, cfg, sym, side, setup, feats, allc, all_lessons)
+
+
+def scout_block(root, now, mode, cfg, sym, feats=None, allc=None, all_lessons=None):
+    """scope=event для поиска входа (плана ещё нет): похожие ситуации по монете события (класс монеты, сессия, диапазон 5м), сторона и сетап не заданы, поэтому
+    сторона не фильтрует, а в блоке она не указана."""
+    return _event_from(root, now, mode, cfg, features.base_sym(sym), None, None, dict(feats or {}), allc, all_lessons)
+
+
+def _event_from(root, now, mode, cfg, sym, side, setup, feats, allc=None, all_lessons=None):
+    bc = cfg.get("brief") or {}
     if not sym:
         return None
     q = query.build_query(sym, side, setup, feats, mode=mode, cfg=cfg, now=now)
@@ -197,7 +207,7 @@ def event_block(root, now, mode, spec, cfg, allc=None, all_lessons=None):
     return _drop(blk)
 
 
-def brief_block(root, now, scope, spec=None, mode=None, agent=None, consumer=None, cfg=None):
+def brief_block(root, now, scope, spec=None, mode=None, agent=None, consumer=None, cfg=None, scout_sym=None, scout_feats=None):
     """-> блок `memory` досье или None (выключено / режим скрыт / нечего показать / нет подходящего плана). Исключения наружу не скрываются: вызывающий (brief._safe) отметит блок как missing."""
     cfg = cfg or memcfg.load(root)
     if not enabled(cfg, agent, consumer) or not shown(mode, cfg):
@@ -205,7 +215,10 @@ def brief_block(root, now, scope, spec=None, mode=None, agent=None, consumer=Non
     if scope == "start":
         blk = start_block(root, now, mode, cfg)
     elif scope == "event":
-        blk = event_block(root, now, mode, spec, cfg) if isinstance(spec, dict) else None
+        if isinstance(spec, dict):
+            blk = event_block(root, now, mode, spec, cfg)
+        else:
+            blk = scout_block(root, now, mode, cfg, scout_sym, scout_feats) if scout_sym else None
     else:
         return None
     if blk is None:

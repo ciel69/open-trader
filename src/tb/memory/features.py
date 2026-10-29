@@ -157,7 +157,8 @@ def situation_from_idea(idea, cfg):
     ref = num(idea.get("level")) or num(idea.get("price"))
     sit = {"sym": base_sym(idea.get("sym")), "side": idea.get("side") if idea.get("side") in cases.SIDES else None,
            "coin_class": classify_coin(idea.get("sym"), cfg), "stop_pct": stop_pct(ref, idea.get("stop")),
-           "rr_planned": rr_planned(ref, idea.get("stop"), idea.get("tp")), "confirm_kind": "unknown", "setup": None}
+           "rr_planned": rr_planned(ref, idea.get("stop"), idea.get("tp")), "confirm_kind": "unknown",
+           "setup": idea.get("tag") if idea.get("tag") in cases.SETUPS else None}
     sit.update(time_feats(idea.get("ts")))
     return finalize(sit)
 

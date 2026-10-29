@@ -963,7 +963,7 @@ def _b_lessons(c):
     return out
 
 
-def memory_block(c, scope, plans, involved=(), consumer=None):
+def memory_block(c, scope, plans, involved=(), consumer=None, scout_sym=None, scout_feats=None):
     """Блок `memory` (WP15b; 08 п. 3.6): похожие прошлые случаи и уроки-гипотезы, <= 450 токенов, только числа/enum/идентификаторы. Считает tb.memory.blocks.
     scope=start: статистика за 14 дней + топ-3 урока; scope=event: только для плана armed/draft, о котором событие (по открытой позиции памяти нет).
     paper/testnet сразу, live только при config/memory.json: show_in_live=true; выключено/нет данных -> None."""
@@ -973,8 +973,8 @@ def memory_block(c, scope, plans, involved=(), consumer=None):
     if scope == "event":
         cand = [p for p in plans if p.get("status") in ACTIVE_PLAN and (not involved or p.get("id") in involved)]
         it = next((x for x in c.plans if cand and x["id"] == cand[0]["id"]), None)
-        if it is None:
-            return None
+        if it is None:                       # плана нет: поиск входа по монете события (entry_scout), позиций по-прежнему без памяти
+            return blocks.brief_block(c.root, c.now, scope, mode=mode, consumer=consumer, scout_sym=scout_sym, scout_feats=scout_feats) if scout_sym else None
         spec, mode = it["spec"], common.ident(it["spec"].get("mode")) or mode
     return blocks.brief_block(c.root, c.now, scope, spec=spec, mode=mode, consumer=consumer)
 
@@ -1202,7 +1202,10 @@ def build(scope="start", since=None, budget_tokens=None, root=None, now=None, co
             have = {x.get("id") for x in b["plans"]}
             b["plans"] += [x for x in plans if x.get("sym") in syms and x.get("id") not in have][:3]
         b["pause"] = _safe("pause", lambda: _b_pause(c, syms), missing) if syms else None
-        b["memory"] = _safe("memory", lambda: memory_block(c, "event", b["plans"], involved, consumer), missing)
+        sig = next((e for e in reversed(b["recent"] or []) if e.get("type") == "scanner_signal" and job_sym and e.get("sym") == job_sym), None)
+        sd = (sig or {}).get("d") if isinstance((sig or {}).get("d"), dict) else {}
+        sfeats = {k: float(sd[k]) for k in ("range_5m_pct", "ret_5m_pct") if isinstance(sd.get(k), (int, float)) and not isinstance(sd.get(k), bool)}
+        b["memory"] = _safe("memory", lambda: memory_block(c, "event", b["plans"], involved, consumer, job_sym if sig is not None else None, sfeats), missing)
         wanted = prio[:2] + [x["sym"] for x in b["positions"]] + [x["sym"] for x in b["plans"]] + prio
         b["levels"] = _safe("levels", lambda: _b_levels(c, list(dict.fromkeys(wanted))[:4]), missing)
         ev_syms = prio[:2]

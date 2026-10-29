@@ -92,7 +92,7 @@ def build_idea_case(i, outs, cfg, trade_ids):
     wi = features.whatif_from_outcomes(outs.get(("idea", str(i.get("id"))), []), cfg.get("whatif_h_min", 15))
     return {"case_id": cases.case_id_for(i.get("ts"), sit["sym"], "idea:%s" % i.get("id")), "type": "idea", "ts": i.get("ts"),
             "refs": {"idea": i.get("id"), "journal_id": i.get("trade") if taken else None, "outcome_id": str(i.get("id")) if wi else None},
-            "src": {"actor": "agent" if i.get("src") in (None, "agent") else "owner", "role": "chat", "rules_ver": cfg.get("rules_ver"), "mode": "live"},
+            "src": {"actor": "agent" if i.get("src") in (None, "agent") else "owner", "role": "chat", "rules_ver": cfg.get("rules_ver"), "mode": i.get("mode") if i.get("mode") in ("paper", "testnet", "live") else "live"},
             "situation": sit, "decision": {"action": "enter" if taken else IDEA_ACTION.get(status, "wait"), "why": why or None, "skip_code": "OTHER" if status == "skipped" else None},
             "result": {"status": "na"}, "whatif": wi, "review": None, "tags": {"err": [], "rule_followed": None},
             "flags": (["backfill"] if i.get("tag") == "backfill" else []) + (["dup_of_trade"] if taken else []) + (["inj_suspect"] if sus else []),

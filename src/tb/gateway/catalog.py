@@ -455,7 +455,8 @@ def h_add_idea(ctx, a):
     side, lvl, stop = a["side"], a.get("level"), a.get("stop")
     if side in ("long", "short") and lvl is not None and stop is not None and ((side == "long" and stop >= lvl) or (side == "short" and stop <= lvl)):
         raise ToolError("E_STOP_SIDE", "стоп с неверной стороны от уровня", "stop")
-    rec = ideas.add_idea(sym, side, a["note"], level=lvl, stop=stop, tp=a.get("tp"), tag=a.get("tag"), src=ctx.agent.actor, root=ctx.root, now=ctx.now)
+    rec = ideas.add_idea(sym, side, a["note"], level=lvl, stop=stop, tp=a.get("tp"), tag=a.get("tag"), src=ctx.agent.actor, root=ctx.root, now=ctx.now,
+                         mode=ctx.agent.limits["modes"][0])
     return {"ok": True, "idea_id": rec["id"]}
 
 

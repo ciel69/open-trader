@@ -694,7 +694,7 @@ class Runner(object):
                     return None
             note = "%s | пропуск %s" % (why, obj.get("skip_code") or "other")
             rec = ideas.add_idea(sym, w["side"], note[:300], level=w["level"], stop=w["stop"], tp=w["tp"], tag=w.get("setup") if w.get("setup") != "none" else None,
-                                 status="watching", src="entry_scout", root=self.root, now=self.clock(), ttl_h=self.WATCH_TTL_H)
+                                 status="watching", src="entry_scout", root=self.root, now=self.clock(), ttl_h=self.WATCH_TTL_H, mode="paper")
             return rec["id"]
         except Exception:
             return None

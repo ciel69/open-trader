@@ -182,8 +182,8 @@ def _ts_epoch(s):
         return None
 
 
-def add_idea(sym, side, note, level=None, stop=None, tp=None, tag=None, status="idea", src="agent", root=None, now=None, ttl_h=TTL_H_DEFAULT):
-    """Дописывает идею, возвращает запись. Цена берётся из локальных файлов (без сети)."""
+def add_idea(sym, side, note, level=None, stop=None, tp=None, tag=None, status="idea", src="agent", root=None, now=None, ttl_h=TTL_H_DEFAULT, mode=None):
+    """Дописывает идею, возвращает запись. Цена берётся из локальных файлов (без сети). mode (paper|testnet|live) нужен памяти: случай идеи берёт режим отсюда."""
     now = time.time() if now is None else now
     sym = sym.upper().replace("USDT", "") if sym.upper().endswith("USDT") and len(sym) > 4 else sym.upper()
     price, src_p = None, None
@@ -192,6 +192,8 @@ def add_idea(sym, side, note, level=None, stop=None, tp=None, tag=None, status="
         price, src_p = hit[0], hit[2]
     rec = {"ev": "idea", "id": next_id(root), "ts": iso(now), "ts_epoch": round(now, 1), "sym": sym, "side": side, "note": note,
            "level": level, "stop": stop, "tp": tp, "tag": tag, "status": status, "price": price, "price_src": src_p, "src": src, "ttl_h": ttl_h}
+    if mode:
+        rec["mode"] = mode
     append(ideas_path(root), rec)
     return rec
 
