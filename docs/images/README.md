@@ -8,8 +8,7 @@ All images are taken from the **synthetic fixture** (`tests/fixtures_v2/gen.py`)
 | `brain-decisions.png` | `#decisions` | brain status card and decision log |
 | `plans.png` | `#plans` | board of plans |
 | `trades.png` | `#trades` | statistics, PnL curve, history |
-| `settings-providers.png` | `#settings` (tab Providers) | LLM providers, keys, "add from template" |
-| `settings-roles.png` | `#settings` -> Roles | role -> profile chains |
+| `settings.png` | `#settings` | who answers what (role -> model, fallbacks), AI connections, keys, "add from template" |
 
 ## Regenerate (after a redesign)
 
@@ -31,5 +30,5 @@ Shoot with any browser at 1440x1000, for example headless Chrome:
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
   --window-size=1440,1000 --virtual-time-budget=8000 --screenshot=docs/images/overview.png "http://127.0.0.1:8774/#overview"
 ```
-The Roles screen is a sub-tab (not addressable by URL): open `#settings`, click "Роли", capture (DevTools, or a CDP script that clicks the button and calls `Page.captureScreenshot`).
+Settings is one page (`#settings`, roles on top, AI connections below): no sub-tab to click. A short Node 22 script that drives Chrome through the DevTools protocol (`--remote-debugging-port`, `Page.navigate`, `Page.captureScreenshot`, no extra packages) is enough to shoot every page.
 Finally: stop the dashboard and the generator, look at every PNG (no home-directory paths, no e-mail, no real amounts, no keys; the red "ctl молчит" badge is an artifact of the fixture, which runs no control service), then `./tb audit-public`.

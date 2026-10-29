@@ -25,7 +25,7 @@ Most documents are in Russian. English entry points: `README.md`, `SECURITY.md`,
 ## Safety and control
 | file | what |
 |---|---|
-| `GATEWAY.md` | tool gateway: 19 tools, rights, limits, audit, MCP |
+| `GATEWAY.md` | tool gateway: 22 tools, rights, limits, audit, MCP |
 | `CONTROL.md` | control plane: key, tokens, live gates, signed commands |
 | `EXCHANGES.md` | exchange registry, one executor per exchange, how to add an exchange |
 | `spec_v2/SETTINGS_API.md` | settings API contract: LLM providers, profiles, roles, exchanges, usage |

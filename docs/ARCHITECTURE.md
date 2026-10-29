@@ -90,7 +90,7 @@ index.html, app.css, app.js), опрос `/api/state` раз в 3 с. Данны
 - Графики: SVG чистым JS; текст из данных вставляется через `textContent`. Тесты: `tests/test_dash.py`, `tests/test_launcher.py`.
 
 ## Шлюз инструментов и MCP (WP11-A, `docs/GATEWAY.md`)
-`src/tb/gateway/` (каталог из 19 инструментов поверх brain/core, реестр агентов `config/agents.json` с хэшами токенов, аудит `state/gateway_audit.jsonl`, `gateway.call(agent, tool, args)`) и
+`src/tb/gateway/` (каталог из 22 инструментов поверх brain/core, реестр агентов `config/agents.json` с хэшами токенов, аудит `state/gateway_audit.jsonl`, `gateway.call(agent, tool, args)`) и
 `src/tb/mcp/server.py` (`./tb mcp serve --agent ID`, stdio JSON-RPC). Агент видит только каталог: ни ключей, ни файлов, ни shell, ни ордеров; команды планов идут в `_inbox` с `actor=brain:<id>`.
 Слои: gateway и mcp не импортируют venues, executor, subprocess, socket, http (`test_layering.py`).
 

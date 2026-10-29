@@ -41,7 +41,7 @@ CLI:
 ```
 Dashboard: **System -> Settings -> Providers -> "Add provider from template" -> "Add disabled"** (needs the dashboard token once: it is printed on first `./tb start`, or `./tb control token new`).
 
-![Settings, Providers](images/settings-providers.png)
+![Settings: AI connections](images/settings.png)
 
 ## 3. Key, model name, enable (order matters: a provider without a key cannot be enabled)
 
@@ -82,7 +82,7 @@ A **profile** = provider + model + params (temperature, max tokens, thinking). A
 
 Role names: `position_manager` means the live team's role, `A.position_manager` names the team explicitly, `shared.news_reader` a shared role. Chain and profile changes need a signing key (created automatically by `./tb start`, or `./tb control init-key`). The same screen exists in the dashboard (**Settings -> Roles**, change needs the token):
 
-![Settings, Roles](images/settings-roles.png)
+![Settings: roles](images/settings.png)
 
 Mixing is allowed and sensible: a cheap model for `news_reader`/`reviewer`/`entry_scout`, a stronger one for `morning_analyst`/`position_manager`, a second provider as `--fallback` so a 429/5xx from one vendor does not blind the brain.
 
