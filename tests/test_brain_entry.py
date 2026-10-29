@@ -279,6 +279,29 @@ class Scout(BrainBase):
         self.assertEqual((i["status"], i["plan"]), ("planned", "PL-1029-SOL-01"))
         self.assertIn("идея %s" % i["id"], [x["why"] for x in self.decisions()][-1])
 
+    def test_exhausted_plan_limit_skips_model_call(self):
+        """Лимит планов в час шлюза исчерпан (по аудиту): модель не зовём, в ленте код RATE_PLANS; отклонённые попытки в счёт не идут."""
+        from tb.gateway import audit
+        lim = self.agents["api"]["limits"]["plans_per_hour"] = 2
+        self.w("config/agents.json", {"agents": self.agents})
+        now = time.time()
+        for k in range(lim):
+            audit.record("api", "submit_plan", {"k": k}, True, "OK", 5, root=self.root, now=now - 60)
+        audit.record("api", "submit_plan", {"k": 9}, False, "E_RATE_PLANS", 5, root=self.root, now=now - 30)
+        r, j, s = self.run_job(propose(event_seq=1))
+        self.assertEqual(j["result"]["roles"][0]["code"], "RATE_PLANS")
+        self.assertEqual(self.factory.calls(), 0)
+        self.assertEqual(self.gw.tool_calls("submit_plan"), [])
+
+    def test_below_plan_limit_still_calls_model(self):
+        from tb.gateway import audit
+        self.agents["api"]["limits"]["plans_per_hour"] = 2
+        self.w("config/agents.json", {"agents": self.agents})
+        audit.record("api", "submit_plan", {"k": 1}, True, "OK", 5, root=self.root, now=time.time() - 60)
+        audit.record("api", "submit_plan", {"k": 2}, False, "E_RATE_PLANS", 5, root=self.root, now=time.time() - 30)
+        r, j, s = self.run_job(propose(event_seq=1))
+        self.assertEqual(len(self.gw.tool_calls("submit_plan")), 1)
+
     def test_skip_without_watch_writes_no_idea(self):
         from tb.core import ideas
         self.run_job(skip())

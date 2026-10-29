@@ -331,6 +331,10 @@ class Runner(object):
                 out.update(outcome="no_action", code=blk)
                 self._journal(job, role, agent_id, None, "skip", blk, "entry_scout не работает: %s" % blk, meta, None, meter, assign)
                 return out
+            if self._plans_exhausted(agent_id):             # лимит планов в час шлюза уже исчерпан: план всё равно не пройдёт, модель не зовём
+                out.update(outcome="no_action", code="RATE_PLANS")
+                self._journal(job, role, agent_id, None, "skip", "RATE_PLANS", "лимит планов в час исчерпан (plans_per_hour в agents.json), вызов модели пропущен", meta, None, meter, assign)
+                return out
         try:
             text, ctx = self._input(role, job, agent_id, meta)
         except DossierError as e:
@@ -669,6 +673,17 @@ class Runner(object):
         if ctx.get("kill") is True or os.path.exists(paths.kill_file(root=self.root)):
             return "KILL"
         return None
+
+    def _plans_exhausted(self, agent_id):
+        """Принятых submit_plan за последний час (по аудиту шлюза) уже не меньше plans_per_hour агента. Нет лимита или сбой чтения аудита -> False (решает шлюз)."""
+        try:
+            from tb.gateway import audit
+            lim = (((self.agents.get(agent_id) or {}).get("limits") or {}).get("plans_per_hour"))
+            if not isinstance(lim, int) or isinstance(lim, bool):
+                return False
+            return audit.count_recent(agent_id, "submit_plan", 3600.0, root=self.root, now=self.clock()) >= lim
+        except Exception:
+            return False
 
     WATCH_TTL_H = 4.0
     WATCH_MAX_ACTIVE = 10
