@@ -133,7 +133,17 @@ function renderActive() {
   var extra = v ? v.positions.filter(function (p) { return !known[p.plan] && (ui.mode === "all" || p.mode === ui.mode); }) : [];
   list = list.concat(extra.map(function (p) { return { id: "v2:" + p.plan, _v2only: true, _vp: p }; }));
   $("open-sum").replaceChildren();
-  if (list.length) put("open-sum", [list.length + " · ", el("span", { class: cls(S.open_pnl), text: S.open_pnl != null ? usd(S.open_pnl, 3) : "" })]);
+  // плавающий результат считаем по тем же карточкам, что показаны ниже; результат частичных закрытий (сработавшие тейки) показываем отдельно:
+  // раньше сервер складывал обе части, и зелёное число в заголовке не сходилось с суммой красных карточек
+  var fl = 0, nfl = 0, rz = 0;
+  list.forEach(function (t) {
+    if (t._v2only) { if (isn(t._vp.upnl)) { fl += t._vp.upnl; nfl++; } return; }
+    var c = t.calc || {};
+    if (c.has_price && isn(c.pnl)) { fl += c.pnl; nfl++; }
+    if (isn(c.realized_parts)) rz += c.realized_parts - (c.fees_parts || 0);
+  });
+  if (list.length) put("open-sum", [list.length + " · ", el("span", { class: cls(fl), title: "Плавающий результат открытых позиций (остаток после частичных закрытий)", text: nfl ? usd(fl, 3) : "" }),
+    Math.abs(rz) >= 5e-4 ? el("span", { class: "muted", title: "Уже зафиксировано частичными закрытиями по тейкам (за вычетом комиссий); в карточках это не показано", text: " · зафиксировано " + usd(rz, 3) }) : null]);
   if (!list.length) put("open-sum", "");
   box.querySelectorAll(".skel,.empty").forEach(function (n) { n.remove(); });
   if (!list.length) {
