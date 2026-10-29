@@ -272,7 +272,8 @@ function roomTile(r) {
       el("i", { style: "width:" + Math.max(r.frac > 0 ? 2 : 0, r.frac * 100).toFixed(1) + "%" })));
 }
 function roomCompact(R) {
-  return [R.allowed ? null : el("div", { class: "room-why neg small", text: R.reasons.join("; ") }), el("div", { class: "room-tiles" }, R.rows.map(roomTile))];
+  return [R.paper ? el("div", { class: "room-why muted small", text: "Бумажный режим: эти лимиты на сделки не влияют и действуют только в live." }) : null,
+    R.allowed ? null : el("div", { class: "room-why neg small", text: R.reasons.join("; ") }), el("div", { class: "room-tiles" }, R.rows.map(roomTile))];
 }
 function renderRoom() {
   var R = S.risk_room, host = $("room");

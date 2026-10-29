@@ -23,7 +23,7 @@ from tb.core.plan_store import PlanStore
 from tb.executor import actions as A
 from tb.executor import commands, gate as G, mdsvc, protect, reconcile
 from tb.executor.ports import KIND_UNKNOWN, PortError
-from tb.logic import rules
+from tb.logic import rules, watch
 from tb.logic.candles import CandleBook, MarketView, tf_min
 
 VERSION = "v2.0-wp5"
@@ -1029,8 +1029,33 @@ class Executor(object):
             if now - self.alerts.get(key, 0.0) >= 60.0:
                 self.alerts[key] = now
                 self.decide("skip", "rule", plan=spec["id"], res={"ok": False, "code": sk["code"]}, why="RULE:%s" % sk["rule"])
-        if patch or res.get("actions"):
+        if self._watch_position(p, view, now) or patch or res.get("actions"):
             self.save(p)
+
+    def _watch_position(self, p, view, now):
+        """Сторож позиции (logic/watch.py): при боковике с плюсом или развороте ордерфлоу будит мозг событием brain_wake_request. -> True, если состояние изменилось."""
+        wc = self.cfg.get("position_watch") or {}
+        spec, rt = p["spec"], p["rt"]
+        if not wc.get("enabled") or rt.get("status") != "managing" or not rt.get("pos"):
+            return False
+        if wc.get("paper_only", True) and not (spec.get("mode") == "paper" or self.port.env == "paper"):
+            return False
+        last = view.last
+        r = rules.r_now(rt, last) if last else None
+        if r is None:
+            return False
+        sgn = 1 if spec.get("side") == "long" else -1
+        try:
+            from tb.core import flowdoc
+            flow = flowdoc.flow_for(self.root, spec["symbol"], now)
+        except Exception:
+            flow = None
+        st = rt.setdefault("counters", {}).setdefault("watch", {})
+        code = watch.evaluate(st, sgn, r, flow, now, wc)
+        if code:
+            self.emit("brain_wake_request", {"code": code, "plan": spec["id"]}, plan=spec["id"], sym=spec["symbol"])
+            self.decide("event", "watch_wake", plan=spec["id"], args={"code": code, "r": round(r, 2)}, why="WATCH:%s" % code, res={"ok": True})
+        return code is not None
 
     def _milestone(self, p, ev):
         name = ev.get("name")

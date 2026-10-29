@@ -340,6 +340,15 @@ def trail_candidate(rule, plan, rt, view):
         if pct is None or pct <= 0:
             return None
         return best * (1 - pct / 100.0) * (1 - buf) if s == 1 else best * (1 + pct / 100.0) * (1 + buf)
+    if mode == "mfe_lock":      # сохраняет lock_frac максимальной достигнутой прибыли (в R) после activate_r: откат от пика не съест всё
+        ru = _f(pos.get("r_unit")) or abs(avg - (_f(pos.get("initial_stop")) or avg))
+        act, frac = _f(do.get("activate_r")), _f(do.get("lock_frac"))
+        if not ru or ru <= 0 or act is None or frac is None or not 0 < frac < 1:
+            return None
+        mfe = s * (best - avg) / ru
+        if mfe < act:
+            return None
+        return avg + s * ru * mfe * frac
     if mode == "step_r":
         step = _f(do.get("step_r"))
         ru = _f(pos.get("r_unit")) or abs(avg - (_f(pos.get("initial_stop")) or avg))
@@ -375,6 +384,22 @@ def _stop_target(do, rt, limits, s):
 
 def _mode_of(do):
     return {"breakeven": "breakeven", "lock_r": "lock_r"}.get(do.get("to"), "price")
+
+
+def _auto_rules(limits):
+    """Правила автозащиты прибыли (exec_limits.auto_protect), действуют у каждой позиции независимо от plan.manage: безубыток с комиссиями при be_r,
+    затем стоп удерживает trail_lock_frac максимальной прибыли после trail_activate_r. Без секции в limits (тесты, старые конфиги) пусто."""
+    ap = (limits or {}).get("auto_protect")
+    if not isinstance(ap, dict) or not ap.get("enabled"):
+        return []
+    out = []
+    be = _f(ap.get("be_r"))
+    if be is not None and be > 0:
+        out.append({"id": "auto_be", "when": {"kind": "pnl_r", "gte": be}, "do": {"action": "move_stop", "to": "breakeven"}, "once": True})
+    act, frac = _f(ap.get("trail_activate_r")), _f(ap.get("trail_lock_frac"))
+    if act is not None and act > 0 and frac is not None and 0 < frac < 1:
+        out.append({"id": "auto_lock", "when": {"kind": "pnl_r", "gte": act}, "do": {"action": "trail", "mode": "mfe_lock", "activate_r": act, "lock_frac": frac}})
+    return out
 
 
 def evaluate_manage(plan, rt, view, now, limits):
@@ -427,7 +452,7 @@ def evaluate_manage(plan, rt, view, now, limits):
         if once_state and rule is not None and rule.get("once"):
             mark(rid, 0, state="skipped")
 
-    for idx, rule in enumerate(plan.get("manage") or []):
+    for idx, rule in enumerate(_auto_rules(limits) + list(plan.get("manage") or [])):
         if not isinstance(rule, dict) or not isinstance(rule.get("do") or {}, dict):
             continue
         rid, do = rule.get("id"), rule.get("do") or {}
@@ -481,7 +506,8 @@ def evaluate_manage(plan, rt, view, now, limits):
             tk = _f(tick)
             need = (step_ticks * tk) if (act == "trail" and tk) else 0.0
             if not is_tighter(s, to, cur_stop) or s * (to - cur_stop) < need - _EPS:
-                skip(rid, "NOT_TIGHTER", True, rule)
+                if act != "trail":          # трейл непрерывный: «не строже» его обычное состояние между новыми экстремумами, это не пропуск и не повод для записи
+                    skip(rid, "NOT_TIGHTER", True, rule)
                 continue
             stops.append((to, rid, mode, done_state, idx))
             continue

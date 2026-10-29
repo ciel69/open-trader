@@ -728,5 +728,38 @@ class SafetyTest(unittest.TestCase):
                 self.fail("мусор в manage не должен ронять движок: %r" % (p,))
 
 
+class AutoProtectTest(unittest.TestCase):
+    """exec_limits.auto_protect: стоп подтягивается и у плана без правил manage; только в сторону прибыли."""
+    AP = dict(LIM, auto_protect={"enabled": True, "be_r": 0.7, "trail_activate_r": 1.0, "trail_lock_frac": 0.5})
+
+    def test_disabled_without_section(self):
+        rt = managing_rt(best_px=None)
+        rt["pos"]["best_px"] = 103.0
+        self.assertEqual(stops(R.evaluate_manage(long_plan(), rt, view(103.0), T0, LIM)), [])
+
+    def test_breakeven_at_be_r(self):
+        rt = managing_rt()
+        rt["pos"]["best_px"] = 100.8
+        s = stops(R.evaluate_manage(long_plan(), rt, view(100.8), T0, self.AP))
+        self.assertEqual(len(s), 1)
+        self.assertGreater(s[0]["to"], 100.0)
+        self.assertLess(s[0]["to"], 100.8)
+
+    def test_mfe_lock_keeps_half_of_peak_long_and_short(self):
+        rt = managing_rt()
+        rt["pos"]["best_px"] = 102.0                                 # пик +2R, цена откатила до 101.6
+        s = stops(R.evaluate_manage(long_plan(), rt, view(101.6), T0, self.AP))
+        self.assertAlmostEqual(s[0]["to"], 101.0, 2)                 # 50% от +2R = +1R
+        rt = managing_rt(side="short")
+        rt["pos"]["best_px"] = 98.0
+        s = stops(R.evaluate_manage(short_plan(), rt, view(98.4), T0, self.AP))
+        self.assertAlmostEqual(s[0]["to"], 99.0, 2)
+
+    def test_never_loosens_existing_stop(self):
+        rt = managing_rt(stop=101.5)
+        rt["pos"]["best_px"] = 102.0
+        self.assertEqual(stops(R.evaluate_manage(long_plan(), rt, view(101.8), T0, self.AP)), [])
+
+
 if __name__ == "__main__":
     unittest.main()
