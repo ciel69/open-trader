@@ -135,7 +135,12 @@ function stDrRole(role) {
   if (!r) return null;
   var opts = stProfileOpts();
   var locked = stLocked(r), rid = (r.scope === "team" ? r.team + "." : "shared.") + r.role, po = r.params_override || {};
-  var fbs = [0, 1].map(function (i) { return stSelect([["", "— нет —"]].concat(opts), (r.fallback[i] || {}).id || "", "st-fb" + i); });
+  var fbSeen = {}; fbSeen[(r.primary || {}).id] = 1;           // запасная, совпавшая с основной или с предыдущей запасной, в конфиге бессмысленна: показываем «— нет —», сохранение её уберёт
+  var fbs = [0, 1].map(function (i) {
+    var id = (r.fallback[i] || {}).id || "";
+    if (id && fbSeen[id]) id = ""; else if (id) fbSeen[id] = 1;
+    return stSelect([["", "— нет —"]].concat(opts), id, "st-fb" + i);
+  });
   var tmp = stInput(po.temperature != null ? po.temperature : "", "как в модели", "st-temp"), mx = stInput(po.max_tokens != null ? po.max_tokens : "", "как в модели", "st-max");
   var th = stSelect([["", "как в модели"]].concat(ST_THINK), po.thinking || "", "st-think"), bd = stInput(r.budget && r.budget.day_usd != null ? r.budget.day_usd : "", "без лимита", "st-bud");
   var err = el("p", { class: "neg small", role: "alert" });
