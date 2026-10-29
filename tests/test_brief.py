@@ -188,6 +188,19 @@ class TestStructure(Base):
         self.assertEqual(seen["prof"].get("marker"), 1)
         self.assertTrue(b["room"]["allowed"])
 
+    def test_paper_room_and_slots_do_not_close_entries(self):
+        """Paper: лимиты дня, слотов и серии стопов вход не закрывают (guard._evaluate_paper), поэтому бриф не отдаёт room.allowed=false и slots=0 (иначе ROOM_CLOSED / NO_SLOTS до вызова модели)."""
+        from unittest import mock
+        w(self.R("runtime", "exec_health.json"), {"ts_epoch": NOW - 1.2, "env": "paper", "mode": "paper", "observe": False, "ws": "up", "reconcile_age_s": 12})
+
+        def closed_room(root, trades, prof, port, active, now):
+            return {"allowed": False, "reasons": ["заняты все слоты (3 из 3)"], "rows": [], "next_risk": {"usdt": 0.0, "full": 0.6}}
+        with mock.patch.object(brief._model(), "risk_room", closed_room):
+            b = self.build()
+        self.assertIs(b["room"]["allowed"], True)
+        self.assertTrue(b["room"]["paper"])
+        self.assertNotIn("reasons", b["room"])
+
     def test_positions_from_plan_and_journal_are_merged(self):
         b = self.build()
         self.assertEqual(len(b["positions"]), 1)                              # журнальная SOL привязана к плану по journal_id

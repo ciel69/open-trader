@@ -1,13 +1,13 @@
 {"version": 1,
  "_note": "Реестр провайдеров LLM (WP11-C1). Секретов нет: ключи лежат в файлах key_file каталога ключей пользователя. Имена моделей и цены только здесь; значения из docs/ref/deepseek_api.md и спецификации НЕ подтверждены: перед включением сверить GET /models и тариф (./tb llm check --live). Цены за 1M токенов, USD.",
- "budget": {"day_usd": 2.0, "hour_usd": 0.5, "day_tokens": 4000000, "hour_tokens": 1000000, "job_usd": 0.05, "warn_frac": 0.8},
+ "budget": {"day_usd": 2.0, "hour_usd": 0.5, "day_tokens": 8000000, "hour_tokens": 1000000, "job_usd": 0.05, "warn_frac": 0.8},
  "providers": {
   "deepseek": {
    "adapter": "deepseek", "base_url": "https://api.deepseek.com", "beta_url": "https://api.deepseek.com/beta",
    "key_file": "deepseek.env", "key_env": "DEEPSEEK_API_KEY", "enabled": true,
    "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300},
    "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
-   "limits": {"concurrent": 2, "rpm": 60, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 4000000},
+   "limits": {"concurrent": 2, "rpm": 60, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 8000000},
    "models": {
     "flash": {"name": "deepseek-flash", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": false, "json_mode": true, "thinking": "param",
               "price": {"in_miss": 0.30, "in_hit": 0.006, "out": 1.20, "offpeak_factor": 0.5,

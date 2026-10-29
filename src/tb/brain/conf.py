@@ -116,11 +116,12 @@ def check_role_opts(role, raw):
         return {}, "неизвестная роль"
     if not isinstance(raw, dict) or any(k not in ("params", "budget") for k in raw):
         return {}, "ожидается {params, budget}"
-    prm = raw.get("params", {})
+    # null = «снято владельцем»: так локальный слой гасит значение из поставляемого config/brain.json (слияние слоёв не умеет удалять ключ)
+    prm = {k: v for k, v in (raw.get("params") or {}).items() if v is not None} if isinstance(raw.get("params", {}), dict) else raw.get("params")
     bad = check_params(prm)
     if bad:
         return {}, bad
-    bud = raw.get("budget", {})
+    bud = {k: v for k, v in raw.get("budget", {}).items() if v is not None} if isinstance(raw.get("budget", {}), dict) else raw.get("budget")
     if not isinstance(bud, dict) or any(k != "day_usd" for k in bud) or any(not _num(v, 0) for v in bud.values()):
         return {}, "budget: {day_usd: число >= 0}"
     return {"params": dict(prm), "budget": dict(bud)}, None

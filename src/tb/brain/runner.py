@@ -338,7 +338,10 @@ class Runner(object):
             blk = self._entry_block(agent_id, None)
             if blk:
                 out.update(outcome="no_action", code=blk)
-                self._journal(job, role, agent_id, None, "skip", blk, "entry_scout не работает: %s" % blk, meta, None, meter, assign)
+                now = self.clock()
+                if blk != "PROTECT_ONLY" or now - self._rb_logged.get((role.id, blk), -1e18) >= 900.0:    # режим «только защита» держится часами: в журнал раз в 15 минут, код есть в результате задания
+                    self._rb_logged[(role.id, blk)] = now
+                    self._journal(job, role, agent_id, None, "skip", blk, "entry_scout не работает: %s" % blk, meta, None, meter, assign)
                 return out
             now = self.clock()
             bs = self._role_budget(role, now)

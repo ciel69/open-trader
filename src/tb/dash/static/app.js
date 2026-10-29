@@ -60,6 +60,17 @@ function renderActiveTab() {
 
 // ---------- счётчики разделов и вкладок (видны на любой странице)
 var subCount = {}, subWarn = {};
+// Отказы Gate за сутки копятся целый день и не гасятся: на значке показываем только новые с момента, когда вкладка «Решения» была открыта (счётчик суточный, при падении сбрасывается)
+var REJ_KEY = "tb.rejects_seen";
+function newRejects(total) {
+  var seen = 0;
+  try { seen = parseInt(localStorage.getItem(REJ_KEY), 10) || 0; } catch (e) { seen = 0; }
+  if (ui.tab === "decisions" || total < seen) {
+    seen = total;
+    try { localStorage.setItem(REJ_KEY, String(seen)); } catch (e) { /* без хранилища счётчик просто растёт до открытия вкладки */ }
+  }
+  return Math.max(0, total - seen);
+}
 function renderBadges() {
   var v = V2(), c = {}, w = {};
   var extra = v ? v.positions.filter(function (p) {
@@ -67,7 +78,7 @@ function renderBadges() {
   }).length : 0;
   c.overview = S.open_trades.length + (S.pending || []).length + extra;
   c.plans = v ? (v.plans.counts.waiting || 0) + (v.plans.counts.watching || 0) + (v.plans.counts.in_trade || 0) : 0;
-  c.decisions = v && v.decisions_day ? v.decisions_day.rejects : 0; w.decisions = c.decisions > 0;
+  c.decisions = newRejects(v && v.decisions_day ? v.decisions_day.rejects : 0); w.decisions = c.decisions > 0;
   var I = S.ideas; c.ideas = I ? (I.counts.idea || 0) + (I.counts.watching || 0) : 0;
   c.system = S.warnings.filter(function (x) { return x.level === "bad" || x.level === "warn"; }).length; w.system = c.system > 0;
   subCount = c; subWarn = w;
