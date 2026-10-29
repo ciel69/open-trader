@@ -79,35 +79,104 @@ Details: `docs/ARCHITECTURE.md`, `docs/DESIGN_V2.md`, `docs/SPEC_V2.md`.
 
 ## Quick start (paper)
 
-**Paper** means simulated trading: orders are filled by a local paper executor at real market prices; no exchange key is used and no money moves. Run everything in a terminal from the repository root.
+**Paper** means simulated trading: orders are filled by a local paper executor at real market prices; no exchange key is used and no money moves. Run everything in a terminal from the repository root. On Windows use `.\tb.cmd` instead of `./tb` (PowerShell or cmd); Windows variants are shown below each step.
 
+**1. Get the code**
+
+```bash
+git clone https://github.com/ciel69/open-trader.git
+cd open-trader
 ```
-git clone <this repository> && cd <repository folder>   # or unzip it; then: chmod +x tb   (a zip may drop the executable bit)
-./tb help                  # sanity check: prints the command list (needs python3 >= 3.9)
-./tb setup --check         # optional: readiness table (what is missing); ./tb setup asks for keys with hidden input
-./tb start                 # the whole platform in the background, profile paper
-./tb status                # services, heartbeat, brain line
+
+From a zip archive the executable bit may be lost: run `chmod +x tb` (macOS/Linux).
+
+**2. Check that it runs** (needs Python 3.9+)
+
+```bash
+./tb help
+./tb setup --check
 ```
-`./tb start` creates the signing key and the dashboard token itself on first run (the token is printed once; keep it) and prints the dashboard link and next steps. Then:
+
+```powershell
+.\tb.cmd help
+.\tb.cmd setup --check
+```
+
+`setup --check` is optional: it prints what is still missing. `./tb setup` asks for keys with hidden input.
+
+**3. Start the platform**
+
+```bash
+./tb start
+./tb status
+```
+
+```powershell
+.\tb.cmd start
+.\tb.cmd status
+```
+
+`./tb start` runs everything in the background (profile paper), creates the signing key and the dashboard token on first run (the token is printed once; keep it) and prints the dashboard link and next steps.
+
+**4. Open the dashboard and start a trading day**
 
 1. Open **http://127.0.0.1:8765/** (local only; paper needs no login, the token is asked once, only for dangerous actions and for changing settings).
-2. Click **Start trading** in the header (or **System -> Control -> Start day**), pick the mode (`paper`) and confirm. A trading day has no time limit: it runs until you stop it. The start goes through steps S1-S9 (tab **Day**).
-3. The brain is **off** until you connect an LLM provider (next section). Until then `./tb start` prints one line `мозг выключен: <reason> (как включить: ...)` and everything else works: dashboard, scanner, plans, paper executor, journal.
+2. Click the blue **Start trading** button at the top of the left sidebar, right under the logo (see the screenshot below). Pick the mode `paper` and confirm. A trading day has no time limit: it runs until you stop it (the same button then reads **Finish day**). The start goes through steps S1-S9 (tab **Day**). The same action is also under **System -> Control -> Start day**.
+3. No button? It appears only while the control service answers, and on a narrow window (under 1100 px) it shrinks to a play icon. Check that the platform is running (`./tb status`, `./tb logs ctl`).
+4. The brain is **off** until you connect an LLM provider (next section). Until then `./tb start` prints one line `мозг выключен: <reason> (как включить: ...)` and everything else works: dashboard, scanner, plans, paper executor, journal.
 
-Stop: `./tb stop` (restart: `./tb restart`). Emergency: `./tb exec halt --flatten`. If you pressed Ctrl+Z in the terminal that started the supervisor, `./tb start|stop|restart` resume it by themselves. Another port: put `{"svc": {"dash": {"port": 8780}}}` into `config/local/platform.json`. Full guide: `docs/QUICKSTART.md` (Russian); operations: `docs/RUNBOOK.md`. Self-check on a temporary root with a fake LLM (uses public Bybit data, touches nothing of yours): `./tb smoke`.
+**Stop, restart, emergency**
+
+```bash
+./tb stop
+./tb restart
+```
+
+```bash
+./tb exec halt --flatten
+```
+
+If you pressed Ctrl+Z in the terminal that started the supervisor, `./tb start|stop|restart` resume it by themselves.
+
+**Another dashboard port**: put this into `config/local/platform.json`, then `./tb restart`:
+
+```json
+{"svc": {"dash": {"port": 8780}}}
+```
+
+**Self-check** on a temporary root with a fake LLM (uses public Bybit data, touches nothing of yours):
+
+```bash
+./tb smoke
+```
+
+Full guide: `docs/QUICKSTART.md` (Russian); operations: `docs/RUNBOOK.md`.
 
 ## Connect an LLM provider
 
 Details, table of templates and troubleshooting: **[docs/PROVIDERS.md](docs/PROVIDERS.md)** ([RU](docs/PROVIDERS.ru.md)). Shortest path for a provider that is already in the registry (DeepSeek; Anthropic works the same way with `anthropic` and profile `an-sonnet`):
 
+```bash
+./tb llm presets
+./tb llm key set deepseek
+./tb brain enable
+./tb llm check --provider deepseek
+./tb restart
 ```
-./tb llm presets                                 # templates: anthropic deepseek openai gemini groq mistral openrouter local lmstudio
-./tb llm key set deepseek                        # hidden prompt; stored in ~/.config/traider-bot/deepseek.env (outside the repo)
-./tb brain enable                                # turns the brain subscriber on (writes config/local/, prints what is still missing)
-./tb llm check --provider deepseek               # offline config check; add --live for one tiny paid request
-./tb restart                                     # or ./tb start; ./tb brain status shows the assignments
+
+What each line does: `presets` lists templates (anthropic, deepseek, openai, gemini, groq, mistral, openrouter, local, lmstudio); `key set` asks for the key with hidden input and stores it in `~/.config/traider-bot/deepseek.env` (outside the repo); `brain enable` turns the brain subscriber on (writes `config/local/`, prints what is still missing); `check` is an offline config check (add `--live` for one tiny paid request); `restart` applies it (`./tb brain status` shows the assignments).
+
+Another vendor (here Gemini):
+
+```bash
+./tb llm provider add gemini --preset gemini
+./tb llm key set gemini
+./tb llm provider enable gemini
+./tb brain profile set gem-flash --provider gemini --model flash
+./tb brain use all gem-flash
 ```
-Another vendor (here Gemini): `./tb llm provider add gemini --preset gemini`, `./tb llm key set gemini`, `./tb llm provider enable gemini`, `./tb brain profile set gem-flash --provider gemini --model flash`, `./tb brain use all gem-flash`. Any OpenAI-compatible URL and local models (Ollama, LM Studio) are covered in `docs/PROVIDERS.md`. **All templates are unverified with a live key; only Anthropic and DeepSeek have native adapters.** Keep to paper and small budgets (`config/brain.json` -> `budget`). The same screens exist in the dashboard (**System -> Settings**).
+
+Any OpenAI-compatible URL and local models (Ollama, LM Studio) are covered in `docs/PROVIDERS.md`. **All templates are unverified with a live key; only Anthropic and DeepSeek have native adapters.** Keep to paper and small budgets (`config/brain.json` -> `budget`). The same screens exist in the dashboard (**System -> Settings**).
 
 ## What you will see
 
@@ -115,7 +184,7 @@ All screenshots below are synthetic fixture data (`tests/fixtures_v2/gen.py`), n
 
 | | |
 |---|---|
-| ![Overview](docs/images/overview.png) | **Now**: capital, risk, open position with stop/take, plans in work, limits headroom, events |
+| ![Overview](docs/images/overview.png) | **Now**: capital, risk, open position with stop/take, plans in work, limits headroom, events. The blue **Start trading** button is top-left in the sidebar |
 | ![Brain decisions](docs/images/brain-decisions.png) | **Brain -> Decisions**: brain status card and the log of every decision (who, what, why, result) |
 | ![Plans](docs/images/plans.png) | **Brain -> Plans**: board of plans (waiting / watching / in trade / closed), entry conditions, nearest trigger |
 | ![Trades](docs/images/trades.png) | **Trades**: statistics, cumulative PnL, exit reasons, history |
@@ -152,9 +221,14 @@ Start with `docs/INDEX.md`. Key pages: `PROVIDERS` (connect an LLM), `QUICKSTART
 
 ## Tests
 
+```bash
+./tb test
 ```
-./tb test          # whole suite (unittest, no network, no real keys)
-python3 -m unittest discover -s tests -p 'test_layering.py'     # a single file
+
+The whole suite: unittest, no network, no real keys. A single file:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_layering.py'
 ```
 
 ## Contributing
