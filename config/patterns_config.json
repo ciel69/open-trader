@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "atr_n": 14,
+    "pin_wick_frac": 0.6, "pin_opp_frac": 0.2, "pin_min_range_atr": 0.5,
+    "engulf_min_body_atr": 0.5,
+    "doji_body_frac": 0.1, "doji_min_range_atr": 0.3,
+    "star_body_atr": 0.6, "star_small_frac": 0.3,
+    "nr_n": 7,
+    "bb_n": 20, "bb_k": 2.0, "squeeze_lookback": 168, "squeeze_pct": 0.1,
+    "pivot_k": 3, "level_lookback": 500, "level_tol_atr": 0.5, "level_half_life": 240, "level_min_touches": 2,
+    "dbl_min_sep": 10, "dbl_max_sep": 120, "dbl_tol_atr": 0.6, "dbl_depth_atr": 1.5, "dbl_max_age": 48,
+    "vol_n": 20, "vol_mult": 1.5,
+    "htf_k": 4, "htf_fast": 20, "htf_slow": 50,
+    "range_n": 168
+  },
+  "watch_min_score": 3
+}

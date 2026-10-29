@@ -1,0 +1,79 @@
+{
+ "version": 1,
+ "_note": "Шаблоны провайдеров LLM для добавления БЕЗ правки кода (./tb llm provider add --preset ID или дашборд). ВСЕ шаблоны НЕ ПРОВЕРЕНЫ живым ключом (verified:false): URL, имена моделей и цены написаны по памяти и могут быть устаревшими. Владелец проверяет ./tb llm check --provider ID --live (список моделей GET /models и пробный запрос) и правит имена и цены (./tb llm model set). Цены за 1M токенов, USD. Секретов нет.",
+ "presets": {
+  "openai": {
+   "name": "OpenAI (ChatGPT API)", "adapter": "openai_compat", "base_url": "https://api.openai.com/v1", "key_file": "openai.env", "key_env": "OPENAI_API_KEY",
+   "verified": false, "note": "НЕ ПРОВЕРЕНО живым ключом: имена моделей и цены сверить с GET /models и тарифом",
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300}, "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 60, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 2000000},
+   "models": {
+    "mini": {"name": "gpt-4.1-mini", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": false, "json_mode": true, "thinking": "none", "max_tokens_field": "max_completion_tokens",
+             "price": {"in": 0.40, "in_hit": 0.10, "out": 1.60}, "tags": ["cheap"]},
+    "full": {"name": "gpt-4.1", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": false, "json_mode": true, "thinking": "none", "max_tokens_field": "max_completion_tokens",
+             "price": {"in": 2.00, "in_hit": 0.50, "out": 8.00}, "tags": ["strong"]}}},
+  "gemini": {
+   "name": "Google Gemini (OpenAI-совместимая точка)", "adapter": "openai_compat", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+   "key_file": "gemini.env", "key_env": "GEMINI_API_KEY", "verified": false,
+   "note": "НЕ ПРОВЕРЕНО живым ключом: путь /v1beta/openai и имена моделей по памяти; нативный адаптер Gemini не делался (отложено)",
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300}, "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 30, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 2000000},
+   "models": {
+    "flash": {"name": "gemini-2.5-flash", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": false, "json_mode": true, "thinking": "none",
+              "price": {"in": 0.30, "out": 2.50}, "tags": ["cheap"]},
+    "pro": {"name": "gemini-2.5-pro", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": false, "json_mode": true, "thinking": "none",
+            "price": {"in": 1.25, "out": 10.00}, "tags": ["strong"]}}},
+  "openrouter": {
+   "name": "OpenRouter (шлюз к многим моделям)", "adapter": "openai_compat", "base_url": "https://openrouter.ai/api/v1", "key_file": "openrouter.env", "key_env": "OPENROUTER_API_KEY",
+   "verified": false, "note": "НЕ ПРОВЕРЕНО живым ключом: имя модели вида вендор/модель берётся из GET /models; цену указать по тарифу модели",
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300}, "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 30, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 2000000},
+   "models": {
+    "auto": {"name": "vendor/model-name", "tools": true, "strict": false, "json_mode": false, "thinking": "none", "price": {"in": 1.0, "out": 3.0},
+             "tags": ["placeholder"]}}},
+  "anthropic": {
+   "name": "Anthropic (Claude)", "adapter": "anthropic", "base_url": "https://api.anthropic.com", "version_header": "2023-06-01", "key_file": "anthropic.env", "key_env": "ANTHROPIC_API_KEY",
+   "verified": false, "note": "НЕ ПРОВЕРЕНО живым ключом: имена моделей и цены сверить с GET /v1/models и тарифом",
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300}, "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 50, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 2000000},
+   "models": {
+    "haiku": {"name": "claude-haiku-5-5", "tools": true, "strict": true, "json_mode": false, "thinking": "param", "cache": "explicit",
+              "price": {"in": 0.10, "in_hit": 0.01, "cache_write_factor": 1.25, "out": 0.50}},
+    "sonnet": {"name": "claude-sonnet-5-5", "tools": true, "strict": true, "json_mode": false, "thinking": "param", "cache": "explicit",
+               "price": {"in": 2.0, "in_hit": 0.20, "cache_write_factor": 1.25, "out": 10.0}}}},
+  "deepseek": {
+   "name": "DeepSeek", "adapter": "deepseek", "base_url": "https://api.deepseek.com", "beta_url": "https://api.deepseek.com/beta", "key_file": "deepseek.env", "key_env": "DEEPSEEK_API_KEY",
+   "verified": false, "note": "НЕ ПРОВЕРЕНО живым ключом: см. docs/ref/deepseek_api.md",
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300}, "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 60, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 4000000},
+   "models": {
+    "flash": {"name": "deepseek-flash", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": false, "json_mode": true, "thinking": "param",
+              "price": {"in_miss": 0.30, "in_hit": 0.006, "out": 1.20}, "tags": ["cheap"]},
+    "pro": {"name": "deepseek-v4-pro", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": true, "json_mode": true, "thinking": "param",
+            "price": {"in_miss": 1.32, "in_hit": 0.0145, "out": 3.96}, "tags": ["strong"]}}},
+  "groq": {
+   "name": "Groq", "adapter": "openai_compat", "base_url": "https://api.groq.com/openai/v1", "key_file": "groq.env", "key_env": "GROQ_API_KEY", "verified": false,
+   "note": "НЕ ПРОВЕРЕНО живым ключом",
+   "timeouts": {"connect_s": 10, "read_s": 60, "total_s": 120}, "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 30, "day_usd": 2.0},
+   "models": {"main": {"name": "llama-3.3-70b-versatile", "tools": true, "strict": false, "json_mode": true, "thinking": "none", "price": {"in": 0.59, "out": 0.79}}}},
+  "mistral": {
+   "name": "Mistral", "adapter": "openai_compat", "base_url": "https://api.mistral.ai/v1", "key_file": "mistral.env", "key_env": "MISTRAL_API_KEY", "verified": false,
+   "note": "НЕ ПРОВЕРЕНО живым ключом",
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300}, "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 30, "day_usd": 2.0},
+   "models": {"main": {"name": "mistral-large-latest", "tools": true, "strict": false, "json_mode": true, "thinking": "none", "price": {"in": 2.0, "out": 6.0}}}},
+  "local": {
+   "name": "Локальная модель (Ollama)", "adapter": "openai_compat", "base_url": "http://127.0.0.1:11434/v1", "key_file": null, "key_env": null, "verified": false,
+   "note": "НЕ ПРОВЕРЕНО: сервер Ollama должен быть запущен; имя модели из `ollama list` или GET /models",
+   "timeouts": {"connect_s": 3, "read_s": 300, "total_s": 600}, "retry": {"max": 1, "base_s": 1, "max_s": 2, "on": [500, 503]},
+   "limits": {"concurrent": 1, "rpm": 20, "day_usd": 0},
+   "models": {"main": {"name": "qwen2.5:14b", "tools": true, "strict": false, "json_mode": true, "thinking": "none", "price": {"in": 0, "out": 0}}}},
+  "lmstudio": {
+   "name": "Локальная модель (LM Studio)", "adapter": "openai_compat", "base_url": "http://127.0.0.1:1234/v1", "key_file": null, "key_env": null, "verified": false,
+   "note": "НЕ ПРОВЕРЕНО: включите Local Server в LM Studio; имя модели из GET /models",
+   "timeouts": {"connect_s": 3, "read_s": 300, "total_s": 600}, "retry": {"max": 1, "base_s": 1, "max_s": 2, "on": [500, 503]},
+   "limits": {"concurrent": 1, "rpm": 20, "day_usd": 0},
+   "models": {"main": {"name": "local-model", "tools": false, "strict": false, "json_mode": false, "thinking": "none", "price": {"in": 0, "out": 0}}}}
+ }
+}

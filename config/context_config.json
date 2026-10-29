@@ -1,0 +1,46 @@
+{
+  "poll_seconds": 15,
+  "timeout_s": 10,
+  "output": "runtime/context.json",
+  "symbols": ["ETH", "BTC"],
+  "inst": {
+    "ETH": {"okx_inst": "ETH-USDT-SWAP", "okx_ccy": "ETH", "bybit_symbol": "ETHUSDT", "deribit_ccy": "ETH"},
+    "BTC": {"okx_inst": "BTC-USDT-SWAP", "okx_ccy": "BTC", "bybit_symbol": "BTCUSDT", "deribit_ccy": "BTC"}
+  },
+  "macro_events_file": "macro_events.json",
+  "macro_block_minutes": 30,
+  "macro_impacts": ["high"],
+  "thresholds": {
+    "dvol_max": {"ETH": 90, "BTC": 70},
+    "fng_low": 15,
+    "fng_high": 85
+  },
+  "sources": {
+    "dvol": {
+      "enabled": true, "interval_s": 60, "lookback_s": 7200, "resolution": "60",
+      "url": "https://www.deribit.com/api/v2/public/get_volatility_index_data"
+    },
+    "fear_greed": {
+      "enabled": true, "interval_s": 3600,
+      "url": "https://api.alternative.me/fng/"
+    },
+    "global": {
+      "enabled": true, "interval_s": 300,
+      "url": "https://api.coingecko.com/api/v3/global"
+    },
+    "derivs": {
+      "enabled": true, "interval_s": 60, "order": ["okx", "bybit"],
+      "okx": {
+        "funding_url": "https://www.okx.com/api/v5/public/funding-rate",
+        "oi_url": "https://www.okx.com/api/v5/public/open-interest",
+        "ls_url": "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio",
+        "ls_period": "5m"
+      },
+      "bybit": {
+        "ticker_url": "https://api.bybit.com/v5/market/tickers",
+        "ls_url": "https://api.bybit.com/v5/market/account-ratio",
+        "ls_period": "5min"
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"schema": "tb.role/1", "id": "day_auditor", "version": 1, "io": "decision_json", "agent_scope": "shared", "tools": [], "max_rounds": 1, "inputs": ["audit_input"], "output_schema": "audit/1", "max_output_tokens": 2200, "live_risk": true, "params": {"temperature": 0.1}, "wake_on": [], "timeout_s": 120, "retries_format": 2}

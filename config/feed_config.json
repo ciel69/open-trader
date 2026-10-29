@@ -1,0 +1,102 @@
+{
+  "runtime_dir": "runtime",
+  "symbols": {
+    "ETH": {
+      "okx": "ETH-USDT-SWAP",
+      "bybit": "ETHUSDT"
+    },
+    "BTC": {
+      "okx": "BTC-USDT-SWAP",
+      "bybit": "BTCUSDT"
+    },
+    "SOL": {
+      "okx": "SOL-USDT-SWAP",
+      "bybit": "SOLUSDT"
+    },
+    "HYPE": {
+      "okx": "HYPE-USDT-SWAP",
+      "bybit": "HYPEUSDT"
+    },
+    "ZEC": {
+      "okx": "ZEC-USDT-SWAP",
+      "bybit": "ZECUSDT"
+    }
+  },
+  "source_priority": [
+    "okx",
+    "bybit"
+  ],
+  "sources": {
+    "okx": {
+      "enabled": true,
+      "url": "wss://ws.okx.com:8443/ws/v5/public",
+      "allow_plain": false,
+      "channels": [
+        "trades",
+        "tickers",
+        "books5",
+        "funding-rate",
+        "open-interest"
+      ],
+      "keepalive_text": "ping",
+      "keepalive_interval_s": 20,
+      "funding_interval_h": 8,
+      "contract_size": {
+        "ETH": 0.1,
+        "BTC": 0.01,
+        "SOL": 1.0,
+        "HYPE": 1.0,
+        "ZEC": 1.0
+      }
+    },
+    "bybit": {
+      "enabled": true,
+      "url": "wss://stream.bybit.com/v5/public/linear",
+      "allow_plain": false,
+      "topics": [
+        "publicTrade",
+        "tickers",
+        "orderbook.50"
+      ],
+      "keepalive_text": "{\"op\":\"ping\"}",
+      "keepalive_interval_s": 20,
+      "funding_interval_h": 8,
+      "contract_size": {
+        "ETH": 1.0,
+        "BTC": 1.0,
+        "SOL": 1.0,
+        "HYPE": 1.0,
+        "ZEC": 1.0
+      }
+    }
+  },
+  "ws": {
+    "silence_timeout_s": 30,
+    "connect_timeout_s": 10,
+    "backoff_base_s": 1,
+    "backoff_max_s": 30,
+    "max_frame_bytes": 1048576
+  },
+  "stale_seconds": 10,
+  "write_interval_s": 1.0,
+  "once_seconds": 8,
+  "price_hist_s": 7200,
+  "book_levels": 5,
+  "bar_s": 60,
+  "ema_fast": 9,
+  "ema_slow": 21,
+  "atr_n": 14,
+  "regime": {
+    "storm_rv_5m": 0.004,
+    "trend_atr_mult": 0.5
+  },
+  "event_cooldown_s": 300,
+  "events": {
+    "breakout_window_s": 900,
+    "breakout_recent_s": 30,
+    "breakout_vol_mult": 2.0,
+    "imbalance_spike": 0.6,
+    "vol_spike_ratio": 2.5,
+    "divergence_bps": 15
+  }
+}

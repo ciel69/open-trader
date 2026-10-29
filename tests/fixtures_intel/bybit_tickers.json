@@ -1,0 +1,44 @@
+{
+ "retCode": 0,
+ "retMsg": "OK",
+ "result": {
+  "category": "linear",
+  "list": [
+   {
+    "symbol": "BTCUSDT",
+    "lastPrice": "68000",
+    "fundingRate": "0.00005",
+    "openInterestValue": "9100000000",
+    "turnover24h": "21000000000"
+   },
+   {
+    "symbol": "ETHUSDT",
+    "lastPrice": "2600",
+    "fundingRate": "-0.0001",
+    "openInterestValue": "3100000000",
+    "turnover24h": "9000000000"
+   },
+   {
+    "symbol": "SOLUSDT",
+    "lastPrice": "180",
+    "fundingRate": "0.0001",
+    "openInterestValue": "900000000",
+    "turnover24h": "2500000000"
+   },
+   {
+    "symbol": "XYZUSDT",
+    "lastPrice": "1",
+    "fundingRate": "0.01",
+    "openInterestValue": "1",
+    "turnover24h": "1"
+   },
+   {
+    "symbol": "BTC-26DEC26",
+    "lastPrice": "69000",
+    "fundingRate": "",
+    "openInterestValue": "1",
+    "turnover24h": "1"
+   }
+  ]
+ }
+}

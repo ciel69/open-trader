@@ -1,0 +1,86 @@
+{
+ "_note": "EXAMPLE. Copy to config/agents.json. Token hashes are null: create tokens with `./tb gateway token new` (shown once, stored as a hash). Limits only NARROW the guard; new agents are paper-only.",
+ "agents": {
+  "chat": {
+   "role": "brain-chat",
+   "auth": "local",
+   "token_hash": null,
+   "enabled": true,
+   "consumer": "chat",
+   "tools": [
+    "@read",
+    "@events.ack",
+    "@plan.submit",
+    "@plan.manage",
+    "@idea.write",
+    "@journal.post"
+   ],
+   "limits": {
+    "max_risk_usdt": 2.0,
+    "max_risk_pct": 6.0,
+    "symbols": [
+     "*"
+    ],
+    "modes": [
+     "paper",
+     "live"
+    ],
+    "max_size_mult": 1.0,
+    "allow_add": false,
+    "calls_per_min": 120,
+    "plans_per_hour": 10
+   }
+  },
+  "api": {
+   "role": "brain-api",
+   "auth": "token",
+   "token_hash": null,
+   "enabled": true,
+   "consumer": "api",
+   "tools": [
+    "@read",
+    "@events.ack",
+    "@plan.submit",
+    "@plan.manage",
+    "@idea.write",
+    "@journal.post"
+   ],
+   "limits": {
+    "max_risk_usdt": 1.0,
+    "max_risk_pct": 3.0,
+    "symbols": [
+     "*"
+    ],
+    "modes": [
+     "paper"
+    ],
+    "max_size_mult": 1.0,
+    "allow_add": false,
+    "calls_per_min": 60,
+    "plans_per_hour": 4
+   }
+  },
+  "reviewer": {
+   "role": "postmortem",
+   "auth": "token",
+   "token_hash": null,
+   "enabled": true,
+   "consumer": "api",
+   "tools": [
+    "@read",
+    "@idea.write",
+    "@journal.post"
+   ],
+   "limits": {
+    "symbols": [
+     "*"
+    ],
+    "modes": [
+     "paper"
+    ],
+    "calls_per_min": 30,
+    "plans_per_hour": 0
+   }
+  }
+ }
+}

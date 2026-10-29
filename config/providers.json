@@ -1,0 +1,36 @@
+{"version": 1,
+ "_note": "Реестр провайдеров LLM (WP11-C1). Секретов нет: ключи лежат в файлах key_file каталога ключей пользователя. Имена моделей и цены только здесь; значения из docs/ref/deepseek_api.md и спецификации НЕ подтверждены: перед включением сверить GET /models и тариф (./tb llm check --live). Цены за 1M токенов, USD.",
+ "budget": {"day_usd": 2.0, "hour_usd": 0.5, "day_tokens": 4000000, "hour_tokens": 1000000, "job_usd": 0.05, "warn_frac": 0.8},
+ "providers": {
+  "deepseek": {
+   "adapter": "deepseek", "base_url": "https://api.deepseek.com", "beta_url": "https://api.deepseek.com/beta",
+   "key_file": "deepseek.env", "key_env": "DEEPSEEK_API_KEY", "enabled": true,
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300},
+   "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 60, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 4000000},
+   "models": {
+    "flash": {"name": "deepseek-flash", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": false, "json_mode": true, "thinking": "param",
+              "price": {"in_miss": 0.30, "in_hit": 0.006, "out": 1.20, "offpeak_factor": 0.5,
+                        "peak_utc": {"days": [0, 1, 2, 3, 4], "hours": [[1, 4], [6, 10]]}},
+              "tags": ["cheap", "reader"]},
+    "pro": {"name": "deepseek-v4-pro", "ctx": 1000000, "max_out": 8192, "tools": true, "strict": true, "json_mode": true, "thinking": "param",
+            "price": {"in_miss": 1.32, "in_hit": 0.0145, "out": 3.96, "offpeak_factor": 0.5,
+                      "peak_utc": {"days": [0, 1, 2, 3, 4], "hours": [[1, 4], [6, 10]]}},
+            "tags": ["strong"]}}},
+  "anthropic": {
+   "adapter": "anthropic", "base_url": "https://api.anthropic.com", "version_header": "2023-06-01",
+   "key_file": "anthropic.env", "key_env": "ANTHROPIC_API_KEY", "enabled": false,
+   "timeouts": {"connect_s": 10, "read_s": 120, "total_s": 300},
+   "retry": {"max": 3, "base_s": 1, "max_s": 8, "on": [429, 500, 503]},
+   "limits": {"concurrent": 2, "rpm": 50, "day_usd": 3.0, "hour_usd": 1.0, "day_tokens": 2000000},
+   "models": {
+    "haiku": {"name": "claude-haiku-5-5", "tools": true, "strict": true, "json_mode": false, "thinking": "param", "cache": "explicit",
+              "price": {"in": 0.10, "in_hit": 0.01, "cache_write_factor": 1.25, "out": 0.50}},
+    "sonnet": {"name": "claude-sonnet-5-5", "tools": true, "strict": true, "json_mode": false, "thinking": "param", "cache": "explicit",
+               "price": {"in": 2.0, "in_hit": 0.20, "cache_write_factor": 1.25, "out": 10.0}}}},
+  "local": {
+   "adapter": "openai-compatible", "base_url": "http://127.0.0.1:11434/v1", "key_file": null, "key_env": null, "enabled": false,
+   "timeouts": {"connect_s": 3, "read_s": 300, "total_s": 600},
+   "retry": {"max": 1, "base_s": 1, "max_s": 2, "on": [500, 503]},
+   "limits": {"concurrent": 1, "rpm": 20, "day_usd": 0},
+   "models": {"qwen": {"name": "qwen2.5:14b", "tools": true, "strict": false, "json_mode": true, "thinking": "none", "price": {"in": 0, "out": 0}}}}}}

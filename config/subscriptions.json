@@ -1,0 +1,92 @@
+{
+  "version":1,
+  "_comment": "Реестр подписчиков диспетчера (WP11-B). delivery: queue | api_agent | webhook (только localhost) | exec_cmd (не поддерживается). filter: types, exclude_types, kinds (для scanner_signal), pri (wake), max_class (0..4), syms. rate: max_per_hour, min_gap_s (класс 0 не режется); для api_agent: jobs_per_hour, critical_per_hour, class_jobs_per_hour ({класс: потолок в час}, отдельная корзина, не съедает общий лимит), coalesce_s, settle_s, max_seqs. WP11-C3: у api_agent поле roles = {роль: [типы событий]}: какие роли мозга просыпаются на какие типы (заменяет wake_on роли; роль вне карты спит); filter.types должен покрывать объединение. Подписчик api ВЫКЛЮЧЕН (enabled:false), включает владелец (docs/ROLES.md).",
+  "subscribers": [
+    {
+      "id": "chat",
+      "enabled": true,
+      "delivery": "queue",
+      "filter": {
+        "pri": "wake"
+      },
+      "rate": {
+        "max_per_hour": 120
+      }
+    },
+    {
+      "id": "api",
+      "enabled": false,
+      "delivery": "api_agent",
+      "filter": {
+        "pri": "wake",
+        "max_class": 4,
+        "types": [
+          "action_rejected",
+          "brain_wake_request",
+          "connectivity",
+          "entry_blocked",
+          "entry_filled",
+          "macro_blackout_soon",
+          "milestone",
+          "position_closed",
+          "reconcile_alert",
+          "risk_level_changed",
+          "scanner_signal",
+          "session_ending"
+        ],
+        "kinds": [
+          "hot_enter",
+          "range_5m",
+          "turnover_surge",
+          "idea_level"
+        ]
+      },
+      "rate": {
+        "jobs_per_hour": 12,
+        "critical_per_hour": 30,
+        "coalesce_s": 90,
+        "class_jobs_per_hour": {
+          "3": 20,
+          "4": 10
+        }
+      },
+      "roles": {
+        "position_manager": [
+          "milestone",
+          "entry_filled",
+          "entry_blocked",
+          "action_rejected",
+          "brain_wake_request",
+          "session_ending",
+          "connectivity",
+          "reconcile_alert"
+        ],
+        "reviewer": [
+          "position_closed"
+        ],
+        "morning_analyst": [
+          "macro_blackout_soon",
+          "risk_level_changed"
+        ],
+        "entry_scout": [
+          "scanner_signal"
+        ]
+      }
+    },
+    {
+      "id": "hook",
+      "enabled": false,
+      "delivery": "webhook",
+      "url": "http://127.0.0.1:9099/events",
+      "filter": {
+        "pri": "wake"
+      }
+    },
+    {
+      "id": "cmd",
+      "enabled": false,
+      "delivery": "exec_cmd",
+      "filter": {}
+    }
+  ]
+}

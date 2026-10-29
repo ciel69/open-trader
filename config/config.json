@@ -1,0 +1,54 @@
+{
+  "symbols": [
+    "ETH",
+    "BTC"
+  ],
+  "tick_seconds": 60,
+  "bar_seconds": 300,
+  "costs": {
+    "taker_fee_pct": 0.0009,
+    "slippage_buffer_pct": 0.0005,
+    "funding_hourly_assumed": 0.0001
+  },
+  "strategy": {
+    "ema_fast": 9,
+    "ema_slow": 21,
+    "momentum_bars": 6,
+    "atr_bars": 14,
+    "min_bars_warmup": 40,
+    "min_atr_pct": 0.15,
+    "max_atr_pct": 1.5,
+    "min_edge_mult": 2.5,
+    "stop_atr_mult": 1.5,
+    "tp_rr": 2.0,
+    "stop_pct_min": 0.7,
+    "stop_pct_max": 2.0,
+    "min_spread_atr": 0.25,
+    "min_slope_atr": 0.25,
+    "min_momentum_atr": 0.6,
+    "max_extension_atr": 3.5,
+    "er_bars": 12,
+    "min_efficiency": 0.3
+  },
+  "risk": {
+    "leverage": 3,
+    "margin_per_trade": 6.0,
+    "max_open_positions": 2,
+    "min_free_reserve": 8.0,
+    "daily_loss_limit_usdt": 3.0,
+    "max_trades_per_day": 12,
+    "cooldown_after_stop_minutes": 20,
+    "max_hold_minutes": 240,
+    "min_liq_distance_pct": 15.0,
+    "stale_seconds": 150,
+    "allow_averaging_down": false,
+    "maintenance_margin_pct": 1.0
+  },
+  "session": {
+    "flatten_on_stop": true
+  },
+  "sizing": {
+    "risk_per_trade_frac": 0.03,
+    "liq_factor": 2.2
+  }
+}

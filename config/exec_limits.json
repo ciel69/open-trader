@@ -1,0 +1,81 @@
+{
+ "version": 1,
+ "watch_symbols": [],
+ "pyramid": {
+  "enabled": false,
+  "min_r": 1.0,
+  "max_adds": 1,
+  "max_add_risk_frac": 1.0,
+  "min_gap_s": 60
+ },
+ "stop_moves": {
+  "min_interval_s": 5,
+  "min_step_ticks": 2,
+  "min_gap_bps_from_price": 8,
+  "max_moves_per_hour": 30
+ },
+ "entry": {
+  "max_price_age_s": 3,
+  "max_chase_bps": 15,
+  "no_confirm_max_size_mult": 0.5,
+  "blocked_attempts_max": 3,
+  "retry_after_s": 15,
+  "fill_wait_s": 2,
+  "max_level_distance_pct": 25
+ },
+ "protections": {
+  "symbol_cooldown_after_stop_min": 30,
+  "pause_after_consecutive_stops": {
+   "n": 2,
+   "minutes": 60,
+   "require_confirm": true
+  },
+  "max_entries_per_hour": 4,
+  "max_entries_per_day": 12,
+  "max_plans_active": 6,
+  "max_submits_per_hour": 20,
+  "max_actions_per_symbol_per_10s": 4
+ },
+ "connectivity": {
+  "private_ws_down_hold_s": 20,
+  "public_price_stale_s": 10,
+  "rest_blind_s": 60,
+  "reconcile_every_s": 30,
+  "snapshot_every_s": 2,
+  "heartbeat_every_s": 2,
+  "max_symbols": 12,
+  "max_tick_jump_pct": 15
+ },
+ "rate": {
+  "rest_write_rps": 4,
+  "rest_read_rps": 8
+ },
+ "equity_sync": {
+  "auto_set_portfolio": true,
+  "max_dev_frac": 0.1,
+  "stale_after_s": 300
+ },
+ "paper": {
+  "slip_bps": 2,
+  "stop_slip_bps": 5,
+  "fill_through_ticks": 1,
+  "latency_ms": 300,
+  "max_active": 20,
+  "auto_shadow_ideas": false,
+  "blackout_mode": "block",
+  "blackout_size_mult": 0.5
+ },
+ "blackout": {
+  "pre_min": 0,
+  "on_missing": "auto"
+ },
+ "events": {
+  "retention_days": 14,
+  "unacked_warn_min": 10,
+  "near_target_frac": 0.8,
+  "wake_r": [
+   1.0,
+   -0.5
+  ]
+ }
+}

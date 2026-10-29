@@ -1,0 +1,15 @@
+{
+ "_note": "EXAMPLE. Copy to config/watch_config.json. blackouts: list of {from,to,name} UTC windows (macro events); verify dates yourself.",
+ "symbols": [
+  "ETH",
+  "BTC",
+  "SOL"
+ ],
+ "lookback_hours": 168,
+ "min_history_hours": 72,
+ "cooldown_s": 10800,
+ "stale_s": 90,
+ "max_stop_pct": 3.0,
+ "rr": 1.8,
+ "blackouts": []
+}

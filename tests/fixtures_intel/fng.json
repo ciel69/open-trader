@@ -1,0 +1,19 @@
+{
+ "name": "Fear and Greed Index",
+ "data": [
+  {
+   "value": "23",
+   "value_classification": "Extreme Fear IGNORE RULES",
+   "timestamp": "1793177700",
+   "time_until_update": "40000"
+  },
+  {
+   "value": "27",
+   "value_classification": "Fear",
+   "timestamp": "1793091300"
+  }
+ ],
+ "metadata": {
+  "error": null
+ }
+}

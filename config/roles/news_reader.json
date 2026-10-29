@@ -1,0 +1,1 @@
+{"schema": "tb.role/1", "id": "news_reader", "version": 0, "io": "decision_json", "agent_scope": "shared", "tools": [], "max_rounds": 1, "inputs": ["headlines:10"], "output_schema": "reader/1", "max_output_tokens": 500, "live_risk": false, "params": {"temperature": 0}, "wake_on": [], "timeout_s": 60, "retries_format": 2, "common": false}

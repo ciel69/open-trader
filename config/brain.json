@@ -1,0 +1,173 @@
+{
+ "version": 1,
+ "_note": "Желаемая начальная конфигурация API-мозга (WP11-C2). После первой смены модели действует подписанный state/brain/active.json (./tb brain reload --from-config возвращает к этому файлу). Метку live_ok ставит ТОЛЬКО владелец после отчёта eval. Секретов нет.",
+ "profiles": {
+  "ds-flash": {
+   "provider": "deepseek",
+   "model": "flash",
+   "params": {
+    "temperature": 0.1,
+    "max_tokens": 2500,
+    "thinking": "low"
+   },
+   "live_ok": false,
+   "eval_ts": null
+  },
+  "ds-pro": {
+   "provider": "deepseek",
+   "model": "pro",
+   "params": {
+    "temperature": 0.1,
+    "max_tokens": 2500,
+    "thinking": "low"
+   },
+   "live_ok": false,
+   "eval_ts": null
+  },
+  "an-sonnet": {
+   "provider": "anthropic",
+   "model": "sonnet",
+   "params": {
+    "temperature": 0.1,
+    "max_tokens": 2500,
+    "thinking": "off"
+   },
+   "live_ok": false,
+   "eval_ts": null
+  }
+ },
+ "shared_roles": {
+  "news_reader": {
+   "primary": "ds-flash",
+   "fallback": [
+    "ds-flash"
+   ]
+  },
+  "reviewer": {
+   "primary": "ds-flash",
+   "fallback": [
+    "ds-pro"
+   ]
+  },
+  "day_auditor": {
+   "primary": "ds-pro",
+   "fallback": [
+    "ds-flash"
+   ]
+  }
+ },
+ "teams": {
+  "A": {
+   "agent_id": "api",
+   "roles": {
+    "morning_analyst": {
+     "primary": "ds-pro",
+     "fallback": [
+      "an-sonnet",
+      "ds-flash"
+     ]
+    },
+    "position_manager": {
+     "primary": "ds-pro",
+     "fallback": [
+      "an-sonnet"
+     ]
+    },
+    "entry_scout": {
+     "primary": "ds-flash",
+     "fallback": [
+      "ds-flash"
+     ]
+    }
+   }
+  }
+ },
+ "trading": {
+  "live_team": "A",
+  "compare": {
+   "enabled": false,
+   "teams": [],
+   "exec": "dry",
+   "max_usd_day": 0.5,
+   "roles": [
+    "morning_analyst",
+    "position_manager"
+   ]
+  }
+ },
+ "budget": {
+  "day_usd": 2.0,
+  "job_usd": 0.05,
+  "job_tokens": 60000,
+  "jobs_per_hour": 12,
+  "critical_per_hour": 30,
+  "warn_frac": 0.8
+ },
+ "swap_rules": {
+  "min_paper_trades": 30,
+  "min_paper_days": 7,
+  "soft": true,
+  "max_invariant_violations": 0,
+  "min_eval_valid_rate": 0.95,
+  "cooldown_min": 240,
+  "max_swaps_day": 3,
+  "require_live_ok": true,
+  "phrase": "СМЕНИТЬ ТОРГОВОГО АГЕНТА {old} -> {new}",
+  "phrase_model": "СМЕНИТЬ МОДЕЛЬ {role} {old} -> {new}",
+  "allow_with_open_positions": true,
+  "probe_max_age_s": 300
+ },
+ "fallback": {
+  "on": [
+   "timeout",
+   "http_5xx",
+   "rate",
+   "budget",
+   "format_x2"
+  ],
+  "live_risk_requires_live_ok": true,
+  "protect_only_after_s": 120,
+  "cooldown_s": {
+   "base": 60,
+   "max": 900
+  }
+ },
+ "runtime": {
+  "workers": 2,
+  "poll_s": 1.0,
+  "job_ttl_s": 900,
+  "max_attempts": 3,
+  "stale_taken_s": 300,
+  "keep_jobs_s": 259200,
+  "guards": {
+   "same_decision_max": 3,
+   "same_decision_window_s": 3600,
+   "loop_jobs_max": 8,
+   "loop_window_s": 600,
+   "loop_block_s": 600,
+   "jobs_total_per_hour": 60,
+   "scan_jobs_per_hour": 20,
+   "role_jobs_per_hour": {
+    "entry_scout": 20
+   }
+  }
+ },
+ "eval": {
+  "_note": "Пороги живого eval (./tb brain eval --live --confirm, только владелец): метка live_ok профилю ставится, если все роли профиля прогнаны полностью и выполнено всё. Согласовано с swap_rules.min_eval_valid_rate (07b п. 5.10, 6.2).",
+  "min_valid_first": 0.95,
+  "max_critical_violations": 0,
+  "max_violation_rate": 0.05,
+  "min_decision_match": 0.8,
+  "max_usd": 0.5
+ },
+ "role_opts": {
+  "entry_scout": {
+   "params": {
+    "thinking": "low"
+   },
+   "budget": {
+    "day_usd": 0.5
+   }
+  }
+ }
+}

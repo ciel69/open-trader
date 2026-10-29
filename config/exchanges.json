@@ -1,0 +1,20 @@
+{
+ "version": 1,
+ "_note": "Реестр бирж (WP-X). Сейчас реально работает только bybit; остальные записи - заготовки (enabled:false, implemented:false): включить их нельзя, пока не написан адаптер (docs/EXCHANGES.md). Личные изменения: config/local/exchanges.json или дашборд (ctl exchange.set). Секретов нет: ключи бирж вводятся ТОЛЬКО в терминале (./tb setup), имена файлов ключей здесь для справки.",
+ "active": "bybit",
+ "allowed": ["bybit"],
+ "exchanges": {
+  "bybit": {
+   "name": "Bybit (USDT-перпетуалы)", "adapter": "bybit", "enabled": true, "mode": "paper",
+   "keys": {"read": "bybit_mainnet.env", "trade": "bybit_mainnet_trade.env", "testnet": "bybit_testnet.env"},
+   "limits": {"max_open_positions": null},
+   "symbols": {"allow": [], "deny": []},
+   "note": "единственная реализованная биржа: LivePort/PaperPort"},
+  "okx": {
+   "name": "OKX", "adapter": "okx", "enabled": false, "mode": "paper", "keys": {}, "limits": {"max_open_positions": null}, "symbols": {"allow": [], "deny": []},
+   "note": "не реализовано: заготовка"},
+  "binance": {
+   "name": "Binance USD-M", "adapter": "binance", "enabled": false, "mode": "paper", "keys": {}, "limits": {"max_open_positions": null}, "symbols": {"allow": [], "deny": []},
+   "note": "не реализовано: заготовка"}
+ }
+}

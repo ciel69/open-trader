@@ -1,0 +1,51 @@
+# --- ключи, токены, окружение (НИКОГДА не коммитить) ---
+*.env
+.env
+.env.*
+*.token
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+secrets/
+# --- личные данные владельца: состояние, журналы сделок, память, история, дампы ---
+state/
+runtime/
+data/
+dumps/
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+# --- личные настройки и инструменты агента ---
+CLAUDE.local.md
+.claude/
+.impeccable/
+config/*.local.json
+scratchpad/
+tmp/
+.tmp/
+# временные корни тестов и прогонов
+tbpend_*/
+tb_tmp_*/
+.tb_tmp/
+# --- мусор ---
+*.log
+*.pid
+*.lock
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+venv/
+.venv/
+
+# локальные переопределения конфигов владельца (слой src/tb/core/localcfg.py)
+config/local/

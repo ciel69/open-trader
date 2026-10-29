@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "_comment": "Жизненный цикл дня (WP14, docs/LIFECYCLE.md). Недостающие ключи берутся из tb.lifecycle.cfg.DEFAULTS. Лимиты и плечо здесь НЕ задаются: только время, сроки шагов, ожидания и уведомления.",
+  "day_start_utc": "07:00",
+  "day_end_utc": null,
+  "max_day_hours": 16,
+  "stop_day_on_session_end": false,
+  "default_setups": ["level_reclaim", "sweep_reject"],
+  "default_max_new_plans": 2,
+  "preflight": {"require_supervisor": true, "hb_max_s": 10, "reconcile_max_s": 60, "scanner_hb_s": 120, "data_max_age_s": 300, "facts_max_age_s": 900,
+                "disk_min_mb": 200, "logs_max_mb": 500, "blackout_min": 30, "min_free_usdt": 1.0},
+  "briefing": {"enabled": true, "attempts": 2, "timeout_s": 150, "facts_wait_s": 60},
+  "closing": {"exec_wait_s": 120, "retry_after_s": 20, "owner_wait_min": 15, "auditor_timeout_s": 90, "reconcile_wait_s": 30, "snapshot_max_age_s": 30},
+  "carry": {"enabled": true, "reconcile_alert_min": 15, "link_window_min": 30, "need_trail_or_max_hold": true},
+  "resume": {"starting_abort_s": 600, "runner_stale_s": 45},
+  "notify": {"os": false, "bus": true},
+  "report": {"max_trades": 50}
+}

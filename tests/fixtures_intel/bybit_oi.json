@@ -1,0 +1,111 @@
+{
+ "retCode": 0,
+ "retMsg": "OK",
+ "result": {
+  "symbol": "BTCUSDT",
+  "category": "linear",
+  "list": [
+   {
+    "openInterest": "100000",
+    "timestamp": "1793181300000"
+   },
+   {
+    "openInterest": "99500",
+    "timestamp": "1793177700000"
+   },
+   {
+    "openInterest": "99000",
+    "timestamp": "1793174100000"
+   },
+   {
+    "openInterest": "98500",
+    "timestamp": "1793170500000"
+   },
+   {
+    "openInterest": "98000",
+    "timestamp": "1793166900000"
+   },
+   {
+    "openInterest": "97500",
+    "timestamp": "1793163300000"
+   },
+   {
+    "openInterest": "97000",
+    "timestamp": "1793159700000"
+   },
+   {
+    "openInterest": "96500",
+    "timestamp": "1793156100000"
+   },
+   {
+    "openInterest": "96000",
+    "timestamp": "1793152500000"
+   },
+   {
+    "openInterest": "95500",
+    "timestamp": "1793148900000"
+   },
+   {
+    "openInterest": "95000",
+    "timestamp": "1793145300000"
+   },
+   {
+    "openInterest": "94500",
+    "timestamp": "1793141700000"
+   },
+   {
+    "openInterest": "94000",
+    "timestamp": "1793138100000"
+   },
+   {
+    "openInterest": "93500",
+    "timestamp": "1793134500000"
+   },
+   {
+    "openInterest": "93000",
+    "timestamp": "1793130900000"
+   },
+   {
+    "openInterest": "92500",
+    "timestamp": "1793127300000"
+   },
+   {
+    "openInterest": "92000",
+    "timestamp": "1793123700000"
+   },
+   {
+    "openInterest": "91500",
+    "timestamp": "1793120100000"
+   },
+   {
+    "openInterest": "91000",
+    "timestamp": "1793116500000"
+   },
+   {
+    "openInterest": "90500",
+    "timestamp": "1793112900000"
+   },
+   {
+    "openInterest": "90000",
+    "timestamp": "1793109300000"
+   },
+   {
+    "openInterest": "89500",
+    "timestamp": "1793105700000"
+   },
+   {
+    "openInterest": "89000",
+    "timestamp": "1793102100000"
+   },
+   {
+    "openInterest": "88500",
+    "timestamp": "1793098500000"
+   },
+   {
+    "openInterest": "88000",
+    "timestamp": "1793094900000"
+   }
+  ],
+  "nextPageCursor": ""
+ }
+}

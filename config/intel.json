@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "_comment": "Фактура и новости (WP13a). Недостающие ключи берутся из tb.intel.store.DEFAULTS. Источники и парсеры: tb/intel/sources.py; результаты проверки: docs/spec_v2/WP13_sources.md. ВСЕ источники verified:false до `./tb intel verify`; свои отметки verified владелец держит в config/local/intel.json (слой localcfg, не публикуется).",
+  "symbols": ["BTC", "ETH", "SOL"],
+  "hot_n": 3,
+  "reader": {
+    "_comment": "Карантинный читатель новостей (WP13b, docs/NEWS.md). ВЫКЛЮЧЕН, пока владелец не проверил ключ (`./tb llm check --live`) и не прогнал 100 заголовков. Профиль провайдера/модели из config/providers.json (дешёвый). Потолки: вызовов в час, $ в час и сутки.",
+    "enabled": false, "provider": "deepseek", "model": "flash", "batch": 10, "max_tokens": 600, "retries": 1,
+    "max_calls_hour": 12, "max_usd_hour": 0.02, "max_usd_day": 0.05, "max_age_h": 6, "skip_srcs": ["bybit_ann"], "official_srcs": ["bybit_ann"]
+  },
+  "sources": {},
+  "calendar": {
+    "_comment": "КАНДИДАТЫ ниже записаны по памяти автора (v:false), НЕ проверены. ПРОВЕРИТЬ ПО ОФИЦИАЛЬНОМУ КАЛЕНДАРЮ: ФРС federalreserve.gov/monetarypolicy/fomccalendars.htm, BLS bls.gov/schedule/news_release. Подтверждённые события вносить в config/macro_events.json (они имеют v:true и приоритет над кандидатами).",
+    "horizon_days": 14,
+    "warn_min": [60, 15],
+    "unverified_blackout": true,
+    "blackout_min_impact": 2,
+    "windows": {"FOMC": [30, 90], "CPI": [30, 60], "NFP": [30, 60]},
+    "candidates": [
+      {"type": "FOMC", "date": "2026-10-28", "et": "14:00", "impact": 3, "note": "решение по ставке, 2-й день заседания 27-28 окт (ET 14:00 = 18:00 UTC, EDT); по памяти, НЕ ПРОВЕРЕНО"},
+      {"type": "NFP", "date": "2026-11-06", "et": "08:30", "impact": 3, "note": "по памяти (1-я пятница), НЕ ПРОВЕРЕНО"},
+      {"type": "CPI", "date": "2026-11-10", "et": "08:30", "impact": 3, "note": "по памяти, дата самая неуверенная, НЕ ПРОВЕРЕНО"},
+      {"type": "NFP", "date": "2026-12-04", "et": "08:30", "impact": 3, "note": "по памяти (1-я пятница), НЕ ПРОВЕРЕНО"},
+      {"type": "FOMC", "date": "2026-12-09", "et": "14:00", "impact": 3, "note": "заседание 8-9 дек (ET 14:00 = 19:00 UTC, EST); по памяти, НЕ ПРОВЕРЕНО"},
+      {"type": "CPI", "date": "2026-12-10", "et": "08:30", "impact": 3, "note": "по памяти, НЕ ПРОВЕРЕНО"}
+    ]
+  },
+  "us_holidays": ["2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18"],
+  "us_half_days": ["2026-11-27", "2026-12-24"],
+  "us_holidays_note": "Праздники NYSE по памяти, НЕ ПРОВЕРЕНЫ; редактирует владелец (nyse.com/markets/hours-calendars). Полудни: 27 ноя и 24 дек, закрытие 13:00 ET."
+}

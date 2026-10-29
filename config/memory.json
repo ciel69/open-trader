@@ -1,0 +1,59 @@
+{
+  "schema": "tb.memory_cfg/1",
+  "rules_ver": "2026-10-27",
+  "rules_history": ["2026-10-27"],
+  "record_signals": false,
+  "isolation": "shared_history",
+  "retention_days": 365,
+  "exclude_roles": ["mechanics"],
+  "whatif_h_min": 15,
+  "enabled": true,
+  "agents_off": [],
+  "show_in_live": false,
+  "tick": {"enabled": true, "interval_s": 60},
+  "brief": {"max_tokens": 450, "cases_max": 6, "cases_min": 3, "lessons_max": 3, "start_days": 14},
+  "tool": {"max_bytes": 2048, "calls_per_hour": 30, "k_max": 10, "cases_max": 8, "lessons_max": 10},
+  "backtest": {"min_train": 5, "min_similar": 3, "top_k": 5, "min_sim": 0.55, "avoid_below_r": 0.0, "prior_n": 2},
+  "similar": {
+    "k_default": 8,
+    "k_max": 20,
+    "min_sim": 0.55,
+    "min_coverage": 0.6,
+    "max_age_days": 90,
+    "scope": "same_mode",
+    "rules": "cur"
+  },
+  "warn": {"insufficient": 5, "low_n": 30},
+  "weights": {
+    "side": 3, "setup": 3, "confirmed": 3, "regime": 2, "range_5m_pct": 2, "range_15m_pct": 1,
+    "stop_pct": 2, "stop_dist_vs_range5": 2, "turn_surge_5m": 1.5, "spread_bps": 1, "funding_pct": 1,
+    "coin_class": 1.5, "utc_session": 1, "btc_ret_1h_pct": 1, "fng": 0.5, "size_mult": 0.5,
+    "no_confirm_tag": 1, "blackout": 1, "utc_hour": 0.5, "rr_planned": 1, "ret_5m_pct": 1, "chg_24h_pct": 1
+  },
+  "scales": {
+    "range_5m_pct": 3.0, "range_15m_pct": 5.0, "stop_pct": 3.0, "stop_dist_vs_range5": 3.0, "turn_surge_5m": 4.0,
+    "spread_bps": 4.0, "funding_pct": 0.5, "btc_ret_1h_pct": 2.0, "fng": 50.0, "size_mult": 1.0,
+    "rr_planned": 3.0, "ret_5m_pct": 4.0, "chg_24h_pct": 30.0
+  },
+  "log_features": ["turn_surge_5m", "range_5m_pct", "range_15m_pct", "spread_bps", "stop_dist_vs_range5"],
+  "setup_family": {"level_reclaim~level_reject": 0.5, "level_reclaim~sweep_reject": 0.5, "level_reject~sweep_reject": 0.5,
+                   "breakout_retest~trend_pullback": 0.4, "momentum_chase~breakout_retest": 0.3},
+  "coin_class": {
+    "major": ["BTC", "ETH"],
+    "alt_mid": ["SOL", "BNB", "XRP", "ADA", "AVAX", "LINK", "DOT", "LTC", "TRX", "HYPE"],
+    "meme": ["DOGE", "SHIB", "PEPE", "WIF", "BONK", "FLOKI"],
+    "stock_token": ["TSLA", "GOOGL", "AAPL", "NVDA", "MSFT", "AMZN", "META", "SOXS", "SOXL", "TQQQ", "SQQQ", "COIN", "MSTR"],
+    "turnover_mid_usd": 200000000,
+    "turnover_small_usd": 20000000
+  },
+  "review": {"funding_extreme_pct": 0.1, "wide_stop_pct": 3.0, "spread_wide_bps": 5.0, "chase_ret_5m_pct": 1.0, "low_rr": 1.5, "big_move_24h_pct": 10.0},
+  "lessons": {
+    "max_active": 200, "brief_max": 3, "max_new_per_day": 3, "ttl_hyp_days": 30, "ttl_confirmed_days": 90, "half_life_days": 21,
+    "hide_below": 0.15, "min_n_propose": 4, "min_diff_r": 0.5, "min_share": 0.75,
+    "confirm_n": 30, "confirm_days": 5, "confirm_n_fast": 15, "confirm_min_regimes": 2,
+    "reject_n_new": 10, "contradict_mult": 0.6, "conf_cap_hyp": 0.9, "conf_cap_reviewer": 0.3, "merge_jaccard": 0.8,
+    "old_rules_expire_days": 14,
+    "thresholds": {"range_5m_pct": [1.5, 3.0], "spread_bps": [5.0], "turn_surge_5m": [4.0], "stop_pct": [2.0], "chg_24h_pct": [10.0]},
+    "le_thresholds": {"stop_dist_vs_range5": [1.0]}
+  }
+}

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Единая точка входа проекта (macOS/Linux). Формат: ./tb <группа> <команда> [аргументы]   (список: ./tb help)
+# Тонкая обёртка: вся логика (ключ Bybit из ~/.config/traider-bot/, снятие прокси ТОЛЬКО для `bybit`) в src/tb/launcher.py,
+# её же используют tb.cmd и tb.ps1 на Windows, поэтому поведение одинаково.
+# Корень проекта = папка этого файла; для тестов переопределяется TB_ROOT.
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT" || exit 1
+PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH
+exec python3 -m tb.launcher "$@"
