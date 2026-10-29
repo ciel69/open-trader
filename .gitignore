@@ -20,6 +20,7 @@ dumps/
 *.sqlite3
 *.db
 # --- личные настройки и инструменты агента ---
+CLAUDE.md
 CLAUDE.local.md
 .claude/
 .impeccable/
