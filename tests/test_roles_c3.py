@@ -35,7 +35,7 @@ class RolesAndPrompts(unittest.TestCase):
     def test_versions_and_first_line(self):
         for rid in NEW_ROLES:
             r = self.reg.get(rid)
-            ver = 2 if rid in ("morning_analyst", "position_manager") else 1       # v2: правило paper-блэкаута (blackout_mode=warn), осознанная смена промпта
+            ver = {"morning_analyst": 2, "position_manager": 3}.get(rid, 1)       # v2: правило paper-блэкаута (blackout_mode=warn); position_manager v3: реакции на STALLED / FLOW_TURN сторожа
             self.assertEqual(r.version, ver, rid)
             self.assertTrue(r.prompt.startswith("# prompt v%d %s" % (ver, rid)), rid)
         self.assertEqual(self.reg.get("news_reader").version, 0)            # роль WP13b не тронута

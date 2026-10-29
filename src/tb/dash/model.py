@@ -823,14 +823,10 @@ def risk_room(root, trades, prof, port, active, now):
     if ms:
         rows.append(_room_row("stops", "Стопов подряд сегодня", ms, streak, ms - streak, "шт.",
                               "Серия закрытий по стопу за сегодня (UTC), прерывается любым другим выходом. При достижении max_consecutive_stops guard останавливает входы до конца суток."))
-        if paper_day:                    # бумажный день: серия стопов вход не останавливает (решение владельца: paper это эксперимент, guard тоже не считает серию для бумажных сделок)
-            rows[-1].update(level="ok", informational=True, label="Стопов подряд сегодня (paper: не останавливает)",
-                            help="Серия закрытий по стопу за сегодня (UTC). В бумажном режиме она вход НЕ останавливает: guard для paper серию стопов не учитывает, лимит max_consecutive_stops действует только в live.")
-        else:
-            if rows[-1]["level"] == "ok" and ms - streak <= 1 and ms > 1:   # остался один стоп до остановки: жёлтый независимо от доли
-                rows[-1]["level"] = "warn"
-            if streak >= ms:
-                reasons.append("%d стопов подряд: входы остановлены до конца дня" % streak)
+        if rows[-1]["level"] == "ok" and ms - streak <= 1 and ms > 1:   # остался один стоп до остановки: жёлтый независимо от доли
+            rows[-1]["level"] = "warn"
+        if streak >= ms:
+            reasons.append("%d стопов подряд: входы остановлены до конца дня" % streak)
     sess_cfg, sess_room, perf, perf_n = {}, None, 1.0, None
     if active:
         try:
@@ -916,7 +912,8 @@ def risk_room(root, trades, prof, port, active, now):
     nxt = max(0.0, min(full, bind[1]))
     out_ok = not reasons
     reasons_all = reasons
-    return {"allowed": out_ok, "reasons": reasons_all, "rows": rows,
+    # paper: блок выглядит как в live, но guard._evaluate_paper эти лимиты не применяет; страница показывает пометку (флаг paper)
+    return {"allowed": out_ok, "reasons": reasons_all, "rows": rows, "paper": paper_day,
             "next_risk": {"usdt": round(nxt, 4), "full": round(full, 4), "equity": equity, "frac": frac, "dd_mult": dm, "perf_mult": perf, "perf_n": perf_n,
                           "session_type": stype, "assumed_type": assumed, "perf_by_type": perf_by_type,
                           "limited_by": bind[0] if bind[1] < full else None,

@@ -20,6 +20,11 @@ DEFAULTS = {
     "watch_symbols": [],
     "pyramid": {"enabled": False, "min_r": 1.0, "max_adds": 1, "max_add_risk_frac": 1.0, "min_gap_s": 60},
     "stop_moves": {"min_interval_s": 5, "min_step_ticks": 2, "min_gap_bps_from_price": 8, "max_moves_per_hour": 30},
+    # автозащита прибыли: исполнитель сам подтягивает стоп у любой позиции (в том числе без правил manage в плане); только в сторону прибыли
+    "auto_protect": {"enabled": True, "be_r": 0.7, "trail_activate_r": 1.0, "trail_lock_frac": 0.5},
+    # сторож позиции (logic/watch.py): будит мозг (position_manager) по STALLED / FLOW_TURN. paper_only=true: пока только бумажные позиции.
+    # TODO(live): если на paper сторож окажется жизнеспособным (число пробуждений и результат решений мозга, ./tb exp stats), включить для live: paper_only=false (решение владельца)
+    "position_watch": {"enabled": True, "paper_only": True, "stalled_min": 15, "stalled_min_r": 0.5, "flow_turn_s": 30, "max_wakes_per_hour": 3},
     "entry": {"max_price_age_s": 3, "max_chase_bps": 15, "no_confirm_max_size_mult": 0.5, "blocked_attempts_max": 3,
               "retry_after_s": 15, "fill_wait_s": 2, "max_level_distance_pct": 25},
     "protections": {"symbol_cooldown_after_stop_min": 30,
@@ -45,6 +50,7 @@ def defaults():
 # направление безопасности: "min" = меньшее значение строже (безопаснее), "max" = большее строже, "bool_true"/"bool_false" = безопасное значение флага
 SAFER = {
     "pyramid.enabled": "bool_false", "pyramid.min_r": "max", "pyramid.max_adds": "min", "pyramid.max_add_risk_frac": "min",
+    "auto_protect.enabled": "bool_true", "auto_protect.be_r": "min", "auto_protect.trail_activate_r": "min", "auto_protect.trail_lock_frac": "max",
     "pyramid.min_gap_s": "max", "blackout.pre_min": "max", "stop_moves.max_moves_per_hour": "min", "paper.blackout_size_mult": "min",
     "entry.max_price_age_s": "min", "entry.max_chase_bps": "min", "entry.no_confirm_max_size_mult": "min",
     "entry.blocked_attempts_max": "min", "entry.max_level_distance_pct": "min",
@@ -61,7 +67,7 @@ POSITIVE = ("connectivity.", "rate.", "stop_moves.min_interval_s", "paper.max_ac
 ON_MISSING = ("auto", "block", "allow")   # blackout.on_missing: allow действует только в paper, в live/testnet всегда block
 BLACKOUT_MODES = ("warn", "block")     # paper.blackout_mode: warn действует ТОЛЬКО в paper (см. tb.core.blackout), в live/testnet игнорируется
 # доли: [0, 1]
-FRACTIONS = ("equity_sync.max_dev_frac", "events.near_target_frac", "pyramid.max_add_risk_frac")
+FRACTIONS = ("equity_sync.max_dev_frac", "events.near_target_frac", "pyramid.max_add_risk_frac", "auto_protect.trail_lock_frac")
 
 
 def defaults():

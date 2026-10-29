@@ -396,7 +396,9 @@ class TestRiskRoom(Base):
         self.assertEqual((rows["slots"]["used"], rows["slots"]["limit"], rows["slots"]["open"]), (2, 2, 2))
         self.assertAlmostEqual(rows["daily"]["open_risk"], 0.3 * 1.0 + 2.0 * 0.5)                   # риск до стопа по снимку
         self.assertEqual(rows["trades"]["used"], 2)
-        self.assertFalse(self.rr()["allowed"])                                                      # слоты заняты: входы запрещены
+        r = self.rr()
+        self.assertTrue(r["paper"])                                                                 # блок как в live; страница пишет, что в paper лимиты не действуют
+        self.assertFalse(r["allowed"])                                                              # слоты заняты
         self.w("runtime", "exec_snapshot.json", {"ts_epoch": NOW - 1, "env": "mainnet", "positions": [pos("SOL", 0.3, 100.0, 99.0)]})
         rows = self.by(self.rr())
         self.assertEqual((rows["slots"]["used"], rows["daily"]["open_risk"]), (0, 0.0))             # live-день: снимок не учитывается (позиции в журнале)
@@ -441,8 +443,8 @@ class TestRiskRoom(Base):
         self.assertTrue(any("стопов подряд" in x for x in r["reasons"]))
         self.assertEqual(self.by(r)["stops"]["level"], "bad")
 
-    def test_paper_day_stop_streak_does_not_halt_entries(self):
-        """Paper: три стопа подряд больше не запрещают входы (как и в guard для бумажных сделок); строка остаётся справочной. В live то же число стопов запрещает вход (test_blocks)."""
+    def test_paper_day_block_looks_like_live_with_paper_flag(self):
+        """Paper: блок считается как в live (строки и уровни те же), но отдаёт paper=True: страница пишет, что лимиты на сделки не влияют (guard для paper их не применяет)."""
         trades = []
         for i in "ABC":
             trades += [op(i, mode="paper"), cl(i, -0.1, reason="sl", ts_close=iso(NOW - 600 + ord(i)))]
@@ -450,9 +452,9 @@ class TestRiskRoom(Base):
         self.w("runtime", "exec_snapshot.json", {"ts_epoch": NOW - 1, "env": "paper", "account": {"equity": 40.0, "free": 30.0}, "positions": []})
         r = self.rr()
         row = self.by(r)["stops"]
-        self.assertEqual((row["used"], row["limit"], row["level"], row.get("informational")), (3, 3, "ok", True))
-        self.assertFalse(any("стопов подряд" in x for x in r["reasons"]))
-        self.assertIn("paper", row["label"])
+        self.assertTrue(r["paper"])
+        self.assertEqual((row["used"], row["limit"], row["label"]), (3, 3, "Стопов подряд сегодня"))
+        self.assertTrue(any("стопов подряд" in x for x in r["reasons"]))
 
     def test_pending_takes_slot_and_risk(self):
         pend = {"p": {"id": "P1", "mode": "live", "sym": "ETH", "side": "long", "price": 1.0, "risk_usdt": 0.3, "session": "intraday-1", "ts": NOW - 5}}

@@ -63,7 +63,7 @@ WAKE_MILESTONES = ("r_plus_1", "r_minus_05", "near_target", "target_filled")
 SCANNER_KINDS = ("range_5m", "turnover_surge", "hot_enter", "patrol", "idea_near", "idea_level", "idea_invalidated", "idea_tp", "idea_expired",
                  "oi_spike", "oi_flush", "funding_extreme", "liq_cascade",           # деривативы (hotscan.DerivGate, marketdata/liqwatch.py)
                  "cvd_divergence", "book_wall", "xex_gap")                           # ордерфлоу (marketdata/flowwatch.py)
-BRAIN_WAKE_CODES = ("R_PLUS", "R_MINUS", "NEAR_TARGET", "CHECK_PLAN", "TIME")
+BRAIN_WAKE_CODES = ("R_PLUS", "R_MINUS", "NEAR_TARGET", "CHECK_PLAN", "TIME", "STALLED", "FLOW_TURN")   # STALLED / FLOW_TURN: сторож позиции (logic/watch.py), не из правил плана
 LIMIT_WHICH = ("daily_loss", "stop_streak", "session_budget", "max_open", "drawdown_halt", "cooldown", "rate", "brain_budget", "brain_down")
 RECONCILE_KINDS = ("orphan_position", "position_drift", "missing_stop", "unknown_order", "equity_mismatch")
 ENTRY_BLOCKED_WHY = ("GUARD", "CHASE", "COOLDOWN", "STALE", "SPREAD", "MIN_SIZE")

@@ -14,6 +14,20 @@
   "min_gap_bps_from_price": 8,
   "max_moves_per_hour": 30
  },
+ "auto_protect": {
+  "enabled": true,
+  "be_r": 0.7,
+  "trail_activate_r": 1.0,
+  "trail_lock_frac": 0.5
+ },
+ "position_watch": {
+  "enabled": true,
+  "paper_only": true,
+  "stalled_min": 15,
+  "stalled_min_r": 0.5,
+  "flow_turn_s": 30,
+  "max_wakes_per_hour": 3
+ },
  "entry": {
   "max_price_age_s": 3,
   "max_chase_bps": 15,
