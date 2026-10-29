@@ -35,6 +35,41 @@ class Base(unittest.TestCase):
             json.dump(obj, f)
 
 
+class TestPlanLink(Base):
+    def plan_rt(self, pid, rt):
+        d = os.path.join(self.root, "state", "plans", pid)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "runtime.json"), "w", encoding="utf-8") as f:
+            json.dump(rt, f)
+
+    def test_link_picks_nearest_same_side_idea(self):
+        ideas.add_idea("SOL", "long", "a", level=144.0, stop=142.8, tp=147.0, status="watching", now=NOW)
+        ideas.add_idea("SOL", "long", "b", level=150.0, stop=148.0, tp=155.0, status="watching", now=NOW)
+        ideas.add_idea("SOL", "short", "c", level=144.1, stop=145.0, tp=140.0, status="watching", now=NOW)
+        ideas.add_idea("ETH", "long", "d", level=144.0, stop=142.8, tp=147.0, status="watching", now=NOW)
+        self.assertEqual(ideas.link_plan("SOL", "long", 144.3, "PL-1", now=NOW), "I1")
+        by = {i["id"]: i for i in ideas.load_ideas()}
+        self.assertEqual((by["I1"]["status"], by["I1"]["plan"]), ("planned", "PL-1"))
+        self.assertEqual(by["I2"]["status"], "watching")
+        self.assertIsNone(ideas.link_plan("SOL", "long", 144.3, "PL-2", now=NOW))        # I1 уже planned, I2 дальше 2%
+        self.assertNotIn("I1", [i["id"] for i in ideas.load_ideas() if i["status"] in ideas.ACTIVE])      # сторож hotscan её больше не видит
+
+    def test_resolve_planned_to_taken_or_expired(self):
+        ideas.add_idea("SOL", "long", "a", level=144.0, stop=142.8, tp=147.0, status="watching", now=NOW)
+        ideas.add_idea("BTC", "long", "b", level=80000.0, stop=79000.0, tp=82000.0, status="watching", now=NOW)
+        ideas.add_idea("ETH", "long", "c", level=2300.0, stop=2250.0, tp=2400.0, status="watching", now=NOW)
+        for sym, pid, lv in (("SOL", "PL-S", 144.0), ("BTC", "PL-B", 80000.0), ("ETH", "PL-E", 2300.0)):
+            ideas.link_plan(sym, "long", lv, pid, now=NOW)
+        self.plan_rt("PL-S", {"status": "managing", "pos": {"journal_id": "BB-P-SOL-1"}})
+        self.plan_rt("PL-B", {"status": "cancelled", "pos": {}})
+        self.plan_rt("PL-E", {"status": "armed", "pos": {}})
+        self.assertEqual(ideas.resolve_planned(now=NOW + 60), 2)
+        by = {i["id"]: i for i in ideas.load_ideas()}
+        self.assertEqual((by["I1"]["status"], by["I1"]["trade"]), ("taken", "BB-P-SOL-1"))
+        self.assertEqual(by["I2"]["status"], "expired")
+        self.assertEqual(by["I3"]["status"], "planned")                                   # план ещё ждёт входа
+
+
 class TestJournal(Base):
     def test_add_list_mark_price_sources(self):
         self.wjson("runtime", "hot.json", {"ts_epoch": NOW - 5, "top": [{"sym": "AAA", "price": 2.5}], "blocked": []})

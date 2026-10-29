@@ -269,6 +269,16 @@ class Scout(BrainBase):
         r, j, s = self.run_job(skip(skip_code="rr_low", watch=dict(w, level=144.2)), jid="J-s2")
         self.assertEqual(len([i for i in ideas.load_ideas(self.root) if i.get("src") == "entry_scout"]), 1)
 
+    def test_propose_links_idea_to_plan(self):
+        """Вход по уровню идеи: идея получает plan и статус planned, в решении видно id идеи."""
+        from tb.core import ideas
+        ideas.add_idea("SOL", "long", "ждём", level=145.0, stop=143.4, tp=148.2, status="watching", src="entry_scout", root=self.root, mode="paper")
+        self.gw.responses["submit_plan"] = {"ok": True, "plan_id": "PL-1029-SOL-01", "cmd_id": "C-1"}
+        r, j, s = self.run_job(propose(event_seq=1))
+        i = ideas.load_ideas(self.root)[0]
+        self.assertEqual((i["status"], i["plan"]), ("planned", "PL-1029-SOL-01"))
+        self.assertIn("идея %s" % i["id"], [x["why"] for x in self.decisions()][-1])
+
     def test_skip_without_watch_writes_no_idea(self):
         from tb.core import ideas
         self.run_job(skip())

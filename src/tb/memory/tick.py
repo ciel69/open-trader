@@ -9,6 +9,7 @@
 """
 import time
 
+from tb.core import ideas
 from tb.memory import cases, cfg as memcfg, lessons, migrate
 
 _LAST = {}
@@ -18,6 +19,10 @@ def sync_now(root=None, now=None, cfg=None, lessons_too=True):
     """Один шаг без ограничения частоты -> отчёт {"written","new","lessons"} (ошибки наружу как исключения)."""
     now = time.time() if now is None else now
     cfg = cfg or memcfg.load(root)
+    try:
+        ideas.resolve_planned(root, now)           # идеи с поданным планом: сделка или закрытие без входа
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
     rep = migrate.migrate(root, dry_run=False, cfg=cfg, final_only=True)
     out = {"written": rep.get("written", 0), "new": rep.get("new", {}), "errors": rep.get("errors", [])[:3]}
     if lessons_too and rep.get("written"):

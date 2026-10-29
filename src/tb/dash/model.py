@@ -1089,7 +1089,7 @@ def ideas_info(root=None, now=None, trades=None, mm=1.0):
                      "price": p0, "now_price": cur[0] if cur else None, "now_src": cur[2] if cur else None,
                      "now_age_s": max(0.0, now - cur[1]) if cur and cur[1] else None, "shift_pct": shift,
                      "shift_dir_pct": shift * sign if shift is not None and sign else None, "mark_notes": i.get("mark_notes") or [],
-                     "trade_id": i.get("trade"), "trade": _trade_view(tr, mkt, sp, mm) if tr else None,
+                     "trade_id": i.get("trade"), "plan_id": i.get("plan"), "trade": _trade_view(tr, mkt, sp, mm) if tr else None,
                      "outcomes": {str(h): v for h, v in (outs.get(i["id"]) or {}).items()}})
     counts = {k: 0 for k in ideas_core.STATUSES}
     for i in ideas_core.load_ideas(root):

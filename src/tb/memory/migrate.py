@@ -91,7 +91,7 @@ def build_idea_case(i, outs, cfg, trade_ids):
     taken = bool(i.get("trade")) and i.get("trade") in trade_ids          # идея привела к сделке (статус мог смениться на invalidated после)
     wi = features.whatif_from_outcomes(outs.get(("idea", str(i.get("id"))), []), cfg.get("whatif_h_min", 15))
     return {"case_id": cases.case_id_for(i.get("ts"), sit["sym"], "idea:%s" % i.get("id")), "type": "idea", "ts": i.get("ts"),
-            "refs": {"idea": i.get("id"), "journal_id": i.get("trade") if taken else None, "outcome_id": str(i.get("id")) if wi else None},
+            "refs": {"idea": i.get("id"), "journal_id": i.get("trade") if taken else None, "plan": i.get("plan"), "outcome_id": str(i.get("id")) if wi else None},
             "src": {"actor": "agent" if i.get("src") in (None, "agent") else "owner", "role": "chat", "rules_ver": cfg.get("rules_ver"), "mode": i.get("mode") if i.get("mode") in ("paper", "testnet", "live") else "live"},
             "situation": sit, "decision": {"action": "enter" if taken else IDEA_ACTION.get(status, "wait"), "why": why or None, "skip_code": "OTHER" if status == "skipped" else None},
             "result": {"status": "na"}, "whatif": wi, "review": None, "tags": {"err": [], "rule_followed": None},
@@ -145,7 +145,7 @@ def plan(root=None, cfg=None, with_signals=False, final_only=False):
             trade_ids.add(tid)
             built.append(("trades", tid, build_trade_case(tid, t, cfg, root), t))
     for i in src["ideas"]:
-        if final_only and (i.get("status") or "idea") in ideas.ACTIVE:
+        if final_only and (i.get("status") or "idea") in ideas.ACTIVE + ("planned",):
             continue
         built.append(("ideas", i.get("id"), build_idea_case(i, src["outcomes"], cfg, trade_ids), None))
     for d in src["decisions"]:

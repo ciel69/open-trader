@@ -733,6 +733,13 @@ class Runner(object):
         r = self.gateway.call(agent_id, "submit_plan", args, meta=meta)
         ok = r.get("ok") if isinstance(r, dict) else False
         code = "OK" if ok is True else ("QUEUED" if ok is None else ((r.get("errors") or [{}])[0].get("code") or "REJECTED"))
+        if ok is not False and isinstance(r, dict) and r.get("plan_id"):
+            try:                                          # идея по этой монете и стороне стала планом: связь идея -> план -> сделка для памяти и дашборда
+                from tb.core import ideas
+                iid = ideas.link_plan(obj["sym"], obj["side"], obj["level"], r["plan_id"], root=self.root, now=self.clock())
+                why = why + (" | идея %s" % iid if iid else "")
+            except Exception:
+                pass
         self._journal(job, role, agent_id, obj, "note" if ok is not False else "skip", code, why, meta, llm, meter, assign)
         return {"outcome": "decision" if ok is not False else "no_action", "code": code}
 

@@ -2,9 +2,9 @@
 // Вкладка «Идеи»: статусы идей агента (Взято / Наблюдаем / Идеи / Пропущено) и авто-история сканера со статистикой.
 
 // Воронка: идея (цены у уровня ещё нет) -> цена у уровня, агент проверяет -> ПЛАН (вкладка «Планы», его ведёт исполнитель) -> сделка. Здесь только первый шаг и итог.
-var IDEA_TABS = [["active", "Ждут уровня", ["watching", "idea"]], ["taken", "Стали сделкой", ["taken"]],
+var IDEA_TABS = [["active", "Ждут уровня", ["watching", "idea"]], ["taken", "Стали планом", ["planned", "taken"]],
   ["skipped", "Не сработали", ["skipped", "expired", "invalidated"]], ["auto", "Авто-история", null]];
-var STATUS_RU = { idea: "заметка", watching: "ждём уровень", taken: "стала сделкой", skipped: "пропущена", expired: "истекла", invalidated: "тезис сломан", auto_skipped: "авто" };
+var STATUS_RU = { idea: "заметка", watching: "ждём уровень", planned: "план ждёт входа", taken: "стала сделкой", skipped: "пропущена", expired: "истекла", invalidated: "тезис сломан", auto_skipped: "авто" };
 var ideaLimit = 10;
 var autoLimit = 8;
 
@@ -24,6 +24,7 @@ function lastOutcome(o) {
 }
 function ideaResult(i) {
   var tr = i.trade;
+  if (i.status === "planned") return el("span", { class: "muted", text: "план " + (i.plan_id || "") });
   if (i.status === "taken") {
     if (!tr) return el("span", { class: "muted", text: "сделка не найдена" });
     return el("span", null, tr.status === "open" ? chip("в сделке", "") : null, " ", el("b", { class: cls(tr.pnl), text: isn(tr.pnl) ? sg(tr.pnl, 3) : "–" }), isn(tr.r) ? el("span", { class: "muted small", text: " " + rr(tr.r) }) : null);
@@ -40,6 +41,7 @@ function ideaDetail(i) {
     ["Цена записи → сейчас", isn(i.price) ? price(i.price) + (isn(i.now_price) ? " → " + price(i.now_price) : "") + (isn(i.shift_pct) ? " (" + spc(i.shift_pct, 2) + ")" : "") : "–"],
     ["Тег", i.tag || "–"],
     i.zone ? ["Зона", "цена у уровня идеи"] : null,
+    i.plan_id ? ["План", i.plan_id + " (вкладка «Планы»)"] : null,
     ["Что было бы", whatIf(i.outcomes)],
     i.trade ? ["Сделка", i.trade.id + " · " + (i.trade.status === "open" ? "открыта" : (i.trade.reason || "закрыта"))] : (i.trade_id ? ["Сделка", i.trade_id + " не найдена в журнале"] : null)
   ]));
@@ -53,7 +55,7 @@ function ideaTable(rows, taken) {
   shown.forEach(function (i) {
     tbl.appendChild(rowGroup("i:" + i.id, [
       { t: [el("b", { text: i.sym }), " ", chip((i.side || "?").toUpperCase(), "side"), i.zone ? chip("у уровня", "warn") : null], l: "Монета" },
-      { t: chip(STATUS_RU[i.status] || i.status, i.status === "taken" ? "ok" : ""), l: "Статус" },
+      { t: chip(STATUS_RU[i.status] || i.status, i.status === "taken" || i.status === "planned" ? "ok" : ""), l: "Статус" },
       { t: dt(i.ts_epoch), c: "muted-c", l: "Когда" },
       { t: el("span", { class: "clamp", text: i.note || "–" }), c: "wrapc", l: "Тезис" },
       { t: ideaResult(i), c: "num", l: taken ? "Результат" : "Что было бы" }
@@ -133,7 +135,7 @@ function renderIdeas() {
   if (!tab[2]) { put(body, autoPanel(I)); return; }
   var rows = I.items.filter(function (i) { return tab[2].indexOf(i.status) >= 0; });
   if (!rows.length) {
-    put(body, el("div", { class: "empty" }, el("b", { text: "Здесь пока пусто" }), el("span", { text: cur === "active" ? "Идея появляется, когда агент видит уровень, но входить рано: утренний разбор или пропуск с уровнем. Когда цена дойдёт до уровня, агент проверит вход и, если всё сходится, создаст план." : "Появится, когда идея станет сделкой или истечёт." })));
+    put(body, el("div", { class: "empty" }, el("b", { text: "Здесь пока пусто" }), el("span", { text: cur === "active" ? "Идея появляется, когда агент видит уровень, но входить рано: утренний разбор или пропуск с уровнем. Когда цена дойдёт до уровня, агент проверит вход и, если всё сходится, создаст план." : cur === "taken" ? "Появится, когда по идее будет подан план." : "Появится, когда идея истечёт или не сработает." })));
     return;
   }
   put(body, ideaTable(rows, cur === "taken"));

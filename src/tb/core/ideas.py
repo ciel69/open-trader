@@ -27,7 +27,8 @@ from tb import paths
 
 # idea: записана, не решено; watching: наблюдаем/ждём уровень; taken: вошли в сделку (--trade ID из ./tb journal); skipped: осознанно пропущена (причина в note);
 # expired/invalidated: устарела/сломан тезис. auto_skipped не пишется в ideas.jsonl: это авто-история сканера (state/hot_outcomes.jsonl).
-STATUSES = ("idea", "watching", "taken", "skipped", "expired", "invalidated")
+# planned: по идее подан план (поле plan); hotscan её уже не сторожит, итог проставит resolve_planned: taken (план вошёл в сделку) или expired (закрыт без входа).
+STATUSES = ("idea", "watching", "planned", "taken", "skipped", "expired", "invalidated")
 SIDES = ("long", "short", "watch")
 SMALL_N = 30
 ACTIVE = ("idea", "watching")          # статусы, которые ещё ждут решения (их сторожит hotscan)
@@ -128,6 +129,8 @@ def load_ideas(root=None, path=None):
             i = ideas[r["id"]]
             if r.get("trade"):
                 i["trade"] = r["trade"]
+            if r.get("plan"):
+                i["plan"] = r["plan"]
             if r.get("status"):
                 i["status"] = r["status"]
                 i["ts_status"] = r.get("ts")
@@ -198,13 +201,53 @@ def add_idea(sym, side, note, level=None, stop=None, tp=None, tag=None, status="
     return rec
 
 
-def mark_idea(iid, status, note=None, trade=None, root=None, now=None):
+def mark_idea(iid, status, note=None, trade=None, root=None, now=None, plan=None):
     now = time.time() if now is None else now
     if not any(i["id"] == iid for i in load_ideas(root)):
         return None
     rec = {"ev": "mark", "id": iid, "ts": iso(now), "status": status, "note": note, "trade": trade}
+    if plan:
+        rec["plan"] = plan
     append(ideas_path(root), rec)
     return rec
+
+
+def link_plan(sym, side, level, plan_id, root=None, now=None, tol_pct=2.0):
+    """Идея (idea/watching) по той же монете и стороне с уровнем ближе всех к уровню плана (не дальше tol_pct) -> planned с ссылкой на план. -> id идеи или None."""
+    best, bd = None, None
+    for i in load_ideas(root):
+        lv = i.get("level")
+        if i.get("sym") != sym or i.get("side") != side or (i.get("status") or "idea") not in ACTIVE or not lv or not level:
+            continue
+        d = abs(lv - level) / level * 100.0
+        if d <= tol_pct and (bd is None or d < bd):
+            best, bd = i, d
+    if best is None:
+        return None
+    mark_idea(best["id"], "planned", note="план %s" % plan_id, root=root, now=now, plan=plan_id)
+    return best["id"]
+
+
+def resolve_planned(root=None, now=None):
+    """Идеи planned: план вошёл в сделку (runtime.pos.journal_id) -> taken с id сделки; план завершён без входа -> expired. -> число закрытых идей."""
+    now = time.time() if now is None else now
+    n = 0
+    for i in load_ideas(root):
+        if i.get("status") != "planned" or not i.get("plan"):
+            continue
+        try:
+            with open(paths.plans(i["plan"], "runtime.json", root=root), encoding="utf-8") as f:
+                rt = json.load(f)
+        except (OSError, ValueError):
+            continue
+        jid = (rt.get("pos") or {}).get("journal_id")
+        if jid:
+            mark_idea(i["id"], "taken", note="план вошёл в сделку", trade=jid, root=root, now=now)
+            n += 1
+        elif rt.get("status") in ("closed", "cancelled", "expired", "invalidated", "rejected"):
+            mark_idea(i["id"], "expired", note="план %s закрыт без входа" % rt.get("status"), root=root, now=now)
+            n += 1
+    return n
 
 
 def mark_if_active(iid, status, note=None, root=None, path=None, now=None):
