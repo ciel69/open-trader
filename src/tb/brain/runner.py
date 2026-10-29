@@ -92,6 +92,7 @@ class Runner(object):
         b = self.conf.budget
         self.rate = guards.JobRate(g.get("jobs_total_per_hour", 60), b.get("jobs_per_hour", 12), b.get("critical_per_hour", 30), g.get("scan_jobs_per_hour"))
         self.role_rate = guards.RoleRate(g.get("role_jobs_per_hour"))
+        self._rb_logged = {}                  # роль -> ts последней записи «бюджет роли исчерпан» в ленту решений (раз в 15 минут)
         self.loop = guards.LoopGuard(g.get("loop_jobs_max", 8), g.get("loop_window_s", 600), g.get("loop_block_s", 600))
         self.repeat = guards.RepeatGuard(g.get("same_decision_max", 3), g.get("same_decision_window_s", 3600))
         lim = {}
@@ -322,6 +323,14 @@ class Runner(object):
         except Exception:
             return []
 
+    def _role_budget(self, role, now):
+        """-> (потрачено ролью за 24 ч в USD, суточный потолок role_opts.<роль>.budget.day_usd) или None, если у роли потолка нет."""
+        rb = (self.conf.role_opts.get(role.id) or {}).get("budget") or {}
+        if rb.get("day_usd") is None:
+            return None
+        spent = usage_mod.window_totals([r for r in usage_mod.read_rows(self.root, since=budget_mod.window_start(now, 86400)) if r.get("role") == role.id])["usd"]
+        return spent, float(rb["day_usd"])
+
     def _run_role_one(self, role, job, assign, team, agent_id, meter):
         out = {"role": role.id, "outcome": "no_action", "code": None}
         meta = {"job": job["id"], "role": role.id, "team": team, "agent": agent_id, "rev": assign.rev, "event_seq": max(job.get("seqs") or [0])}
@@ -330,6 +339,15 @@ class Runner(object):
             if blk:
                 out.update(outcome="no_action", code=blk)
                 self._journal(job, role, agent_id, None, "skip", blk, "entry_scout не работает: %s" % blk, meta, None, meter, assign)
+                return out
+            now = self.clock()
+            bs = self._role_budget(role, now)
+            if bs is not None and bs[0] >= bs[1]:            # суточный бюджет роли поиска входа исчерпан: вход по событию пропускаем (событие подтверждается, очередь не копится)
+                out.update(outcome="no_action", code="ROLE_BUDGET")
+                if now - self._rb_logged.get(role.id, -1e18) >= 900.0:        # в ленту раз в 15 минут, остальные пропуски тихие (код есть в результате задания)
+                    self._rb_logged[role.id] = now
+                    self._journal(job, role, agent_id, None, "skip", "ROLE_BUDGET",
+                                  "суточный бюджет роли исчерпан (%.2f из %.2f USD за 24 ч): входы по событиям пропускаются, пока окно не освободится или владелец не поднимет лимит" % bs, meta, None, meter, assign)
                 return out
             if self._plans_exhausted(agent_id):             # лимит планов в час шлюза уже исчерпан: план всё равно не пройдёт, модель не зовём
                 out.update(outcome="no_action", code="RATE_PLANS")
@@ -479,11 +497,9 @@ class Runner(object):
             raise Deferred("BUDGET", min(600.0, max(30.0, (st.get("until_ts") or now + 60) - now)))
         if self.health.protect_on and (self.health.protect.get("code") == "brain_budget"):
             self.leave_protect()
-        rb = (self.conf.role_opts.get(role.id) or {}).get("budget") or {}
-        if rb.get("day_usd") is not None:       # суточный потолок расхода роли (учёт llm_calls по полю role); исчерпан -> задание откладывается, остальные роли работают
-            spent = usage_mod.window_totals([r for r in usage_mod.read_rows(self.root, since=budget_mod.window_start(now, 86400)) if r.get("role") == role.id])["usd"]
-            if spent >= float(rb["day_usd"]):
-                raise Deferred("ROLE_BUDGET", 900.0)
+        bs = self._role_budget(role, now)
+        if bs is not None and bs[0] >= bs[1]:   # суточный потолок расхода роли исчерпан: остальные роли работают, а эта откладывается (роли входа пропускаются раньше, в _run_role_one)
+            raise Deferred("ROLE_BUDGET", 900.0)
         chain, _t = assign.chain(role.id, team)
         if not chain:
             self.event("error", {"where": "brain", "code": "NO_ROLE_ASSIGNMENT"})

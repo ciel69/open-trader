@@ -288,6 +288,37 @@ class Scout(BrainBase):
         self.assertEqual((i["status"], i["plan"]), ("planned", "PL-1029-SOL-01"))
         self.assertIn("идея %s" % i["id"], [x["why"] for x in self.decisions()][-1])
 
+    def test_exhausted_role_budget_skips_job_acks_events_and_logs_once(self):
+        """Суточный бюджет роли поиска входа исчерпан: модель не зовём, задание done (не копится в очереди), события подтверждены, в ленте одна запись раз в 15 минут."""
+        from tb.llm import usage
+        r = self.runner({"ds-flash": [propose(event_seq=1)]})
+        r.conf.role_opts["entry_scout"] = {"params": {}, "budget": {"day_usd": 0.01}}
+        usage.record({"role": "entry_scout", "job": "J-old"}, "deepseek", "m", usd=0.02, root=self.root, now=self.t - 60)
+        j1, s1 = self.scan_job("J-b1")
+        j2, s2 = self.scan_job("J-b2", sym="ETH")
+        r.step()
+        r.step()
+        for jid in ("J-b1", "J-b2"):
+            j = self.get_job(jid)
+            self.assertEqual(j["status"], "done", j)
+            self.assertEqual(j["result"]["roles"][0]["code"], "ROLE_BUDGET")
+        self.assertEqual(self.factory.calls(), 0)
+        logged = [x for x in self.decisions() if (x.get("res") or {}).get("code") == "ROLE_BUDGET"]
+        self.assertEqual(len(logged), 1)                                              # вторая запись подавлена: раз в 15 минут
+        self.assertIn("бюджет", logged[0]["why"])
+        from tb.core import bus
+        self.assertGreaterEqual(bus.cursor_get("api", root=self.root)["acked"], max(s1, s2))     # события подтверждены, баннер «не подтверждено wake» не растёт
+
+    def test_role_budget_not_exhausted_still_calls_model(self):
+        from tb.llm import usage
+        r = self.runner({"ds-flash": [skip()]})
+        r.conf.role_opts["entry_scout"] = {"params": {}, "budget": {"day_usd": 1.0}}
+        usage.record({"role": "entry_scout"}, "deepseek", "m", usd=0.02, root=self.root, now=self.t - 60)
+        j1, s1 = self.scan_job("J-ok")
+        r.step()
+        self.assertEqual(self.get_job("J-ok")["result"]["roles"][0]["code"], "SKIP")
+        self.assertEqual(self.factory.calls(), 1)
+
     def test_exhausted_plan_limit_skips_model_call(self):
         """Лимит планов в час шлюза исчерпан (по аудиту): модель не зовём, в ленте код RATE_PLANS; отклонённые попытки в счёт не идут."""
         from tb.gateway import audit
