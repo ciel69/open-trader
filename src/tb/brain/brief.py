@@ -314,6 +314,27 @@ def _b_flash(c, sym):
     return rows or None
 
 
+def _b_playbook(c, b, sym):
+    """Карточки сетапов (brain/playbook.py) по сигналам события и режиму монеты: 1-2 карточки с условием входа, стопом, целью, инвалидацией и тем, чего избегать. Нет карточек -> None."""
+    if not sym or not getattr(c, "root", None):
+        return None
+    from tb.brain import playbook
+    cards, _errs = playbook.load(c.root)
+    if not cards:
+        return None
+    kinds = set()
+    for e in (b.get("recent") or []):
+        if isinstance(e, dict) and e.get("sym") == sym and e.get("type") == "scanner_signal" and isinstance(e.get("d"), dict) and e["d"].get("kind"):
+            kinds.add(e["d"]["kind"])
+    for f in (b.get("flash") or []):
+        if isinstance(f, dict) and f.get("cls"):
+            kinds.add("news:%s" % f["cls"])
+    st = ((b.get("struct") or {}).get("s") or {}).get(sym) if isinstance(b.get("struct"), dict) else None
+    reg = st.get("reg") if isinstance(st, dict) else None
+    rows = playbook.match(cards, kinds, reg, playbook.exp_index(b.get("experiments")))
+    return rows or None
+
+
 def _b_paper_history(c):
     closed = [t for t in c.trades if t.get("mode") == "paper" and t.get("status") == "closed"]
     days = set(str(t.get("ts_close") or "")[:10] for t in closed)
@@ -1116,7 +1137,7 @@ def _trim_struct(b):
 
 
 TRIM_STEPS = (
-    ("lessons", _drop("lessons")), ("missing", _drop("missing")), ("memory", _drop("memory")), ("since_last", _drop("since_last")), ("paper_history", _drop("paper_history")), ("checklist_text", _checklist_ids), ("recent>5", _trim_recent(5)),
+    ("lessons", _drop("lessons")), ("missing", _drop("missing")), ("memory", _drop("memory")), ("playbook", _drop("playbook")), ("since_last", _drop("since_last")), ("paper_history", _drop("paper_history")), ("checklist_text", _checklist_ids), ("recent>5", _trim_recent(5)),
     ("hot>3", _trim_hot(3)), ("ideas>4", _trim_ideas(4)), ("struct>3", _trim_struct), ("levels", _trim_levels), ("recent>3", _trim_recent(3)), ("pending", _drop("pending")),
     ("hot", _drop("hot")), ("ideas", _drop("ideas")), ("experiments", _drop("experiments")), ("struct", _drop("struct")), ("news_digest", _drop("news_digest")), ("intel", _drop("intel")), ("recent>1", _trim_recent(1)), ("checklist", _drop("checklist")), ("market", _drop("market")),
     ("recent", _drop("recent")),
@@ -1222,7 +1243,7 @@ def build(scope="start", since=None, budget_tokens=None, root=None, now=None, co
         b["pause"] = _safe("pause", lambda: _b_pause(c, syms), missing) if syms else None
         b["flash"] = _safe("flash", lambda: _b_flash(c, job_sym), missing) if job_sym else None
         sig = next((e for e in reversed(b["recent"] or []) if e.get("type") in ("scanner_signal", "news_flash") and job_sym and e.get("sym") == job_sym), None)
-        sd =(sig or {}).get("d") if isinstance((sig or {}).get("d"), dict) else {}
+        sd = (sig or {}).get("d") if isinstance((sig or {}).get("d"), dict) else {}
         sfeats = {k: float(sd[k]) for k in ("range_5m_pct", "ret_5m_pct") if isinstance(sd.get(k), (int, float)) and not isinstance(sd.get(k), bool)}
         b["memory"] = _safe("memory", lambda: memory_block(c, "event", b["plans"], involved, consumer, job_sym if sig is not None else None, sfeats), missing)
         wanted = prio[:2] + [x["sym"] for x in b["positions"]] + [x["sym"] for x in b["plans"]] + prio
@@ -1236,6 +1257,7 @@ def build(scope="start", since=None, budget_tokens=None, root=None, now=None, co
         mk = b["market"] if isinstance(b["market"], dict) else {}
         _merge_blackout({"intel": _safe("intel", lambda: intel_block(root, now), missing), "market": mk})
         b["market"] = mk or None
+        b["playbook"] = _safe("playbook", lambda: _b_playbook(c, b, job_sym), missing) if (job_sym and not involved) else None      # только поиск входа: у событий планов карточки не нужны
     else:
         pid = scope_plan.group(1)
         full = _safe("plan", lambda: _b_plan_full(c, pid), missing)
