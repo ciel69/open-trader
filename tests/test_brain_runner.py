@@ -149,7 +149,7 @@ class FormatHandling(BrainBase):
         c = self.factory.clients["ds-pro"]
         self.assertEqual(len(c.calls), 2)
         hint = c.calls[1]["req"].messages[-1]["content"]
-        self.assertIn("КОДЫ", hint)
+        self.assertIn("CODES", hint)
         self.assertIn("BAD_ENUM", hint)
         self.assertEqual(len(c.format_errors), 1)
 

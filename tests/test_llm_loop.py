@@ -119,7 +119,7 @@ class TestAskJson(unittest.TestCase):
         r = schema.ask_json(call, self.req(), SCH)
         self.assertEqual((r.ok, r.attempts), (True, 2))
         hint = call.reqs[1].messages[-1]["content"]
-        self.assertIn("КОДЫ: BAD_ENUM:$.decision", hint)
+        self.assertIn("CODES: BAD_ENUM:$.decision", hint)
         self.assertNotIn("BUYBUY", hint)
         self.assertEqual(call.fmt, [["BAD_ENUM:$.decision"]])
         self.assertEqual(len(call.reqs[0].messages), 1)               # исходный запрос не изменён
@@ -245,7 +245,7 @@ class TestToolLoop(unittest.TestCase):
         call = Scripted(T(""), T("ответ"))
         res, _ = self.run_loop(call)
         self.assertEqual((res.status, res.text), ("ok", "ответ"))
-        self.assertIn("пуст", call.reqs[1].messages[-1]["content"])
+        self.assertIn("empty", call.reqs[1].messages[-1]["content"])
 
     def test_empty_twice_is_empty_status(self):
         res, _ = self.run_loop(Scripted(T(""), T("")))
@@ -273,7 +273,7 @@ class TestToolLoop(unittest.TestCase):
         call = Scripted(T("", [("a", "ping", {"x": 1}, "")]), T('{"decision":"zzz","why":"w"}'), T('{"decision":"hold","why":"w"}'))
         res, _ = self.run_loop(call, schema=SCH)
         self.assertEqual((res.status, res.obj["decision"]), ("ok", "hold"))
-        self.assertIn("КОДЫ", call.reqs[2].messages[-1]["content"])
+        self.assertIn("CODES", call.reqs[2].messages[-1]["content"])
         self.assertEqual(len(call.fmt), 1)
 
     def test_final_json_format_exhausted(self):

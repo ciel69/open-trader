@@ -593,7 +593,7 @@ class Runner(object):
 
         def run_tool(name, args):
             if name not in names:
-                return {"ok": False, "errors": [{"code": "E_TOOL_DENIED", "msg": "инструмент недоступен роли"}]}
+                return {"ok": False, "errors": [{"code": "E_TOOL_DENIED", "msg": "tool unavailable to the role"}]}
             if protect and name in PROTECT_BLOCKED:
                 return {"ok": False, "errors": [{"code": "PROTECT_ONLY", "msg": "режим только защита"}]}
             return self.gateway.call(agent, name, args, meta=meta)

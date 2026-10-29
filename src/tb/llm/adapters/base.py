@@ -136,7 +136,7 @@ class Adapter(object):
         else:
             out["models_status"] = self._error(rep.status, rep.body, secret, 0).code
         if ping:
-            r = self.complete(Req(system="Ответь одним JSON-объектом.", messages=[user('Верни {"ok":true}')], max_tokens=64, temperature=0,
+            r = self.complete(Req(system="Answer with one JSON object.", messages=[user('Return {"ok":true}')], max_tokens=64, temperature=0,
                                   response_format="json" if self.model.json_mode else None))
             out["ping"] = {"finish": r.finish, "in": r.usage.inp, "in_hit": r.usage.hit, "out": r.usage.out, "reasoning": r.usage.reasoning,
                            "lat_ms": r.latency_ms, "text_len": len(r.text)}

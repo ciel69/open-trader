@@ -316,10 +316,10 @@ class TestPrompts(unittest.TestCase):
         for r in (ma, pm):
             self.assertEqual(r.version, 2)
             self.assertIn("blackout.mode=warn", r.system)
-            self.assertIn("только paper", r.system)
+            self.assertIn("only paper", r.system)
         self.assertIn("blackout_warn", ma.system)
-        self.assertIn("не выше 0.5", ma.system)
-        self.assertIn("0 планов", ma.system)
+        self.assertIn("not above 0.5", ma.system)
+        self.assertIn("0 plans", ma.system)
         self.assertIn("blackout.mode", roles_runtime.read_common(_bootstrap.ROOT))
         self.assertIsNone(re.search(r"20\d\d-\d\d-\d\d", ma.system))
 

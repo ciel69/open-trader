@@ -326,7 +326,7 @@ class RoleFiles(unittest.TestCase):
 
     def test_prompt_mentions_core_rules(self):
         p = roles_runtime.load(ROOT).get("entry_scout").system
-        for w in ("size_mult", "no-confirm", "blackout", "ТОЛЬКО paper", "skip"):
+        for w in ("size_mult", "no-confirm", "blackout", "paper ONLY", "skip"):
             self.assertIn(w, p)
 
 

@@ -87,7 +87,7 @@ class AnthropicAdapter(Adapter):
         elif tc in ("auto", "none"):
             tool_choice = {"type": tc}
         if isinstance(rf, dict) and rf.get("schema") and not req.tools:
-            tools = [{"name": RESPOND, "description": "Верни итоговый ответ в этом формате.", "input_schema": rf["schema"]}]
+            tools = [{"name": RESPOND, "description": "Return the final answer in this format.", "input_schema": rf["schema"]}]
             tool_choice = {"type": "tool", "name": RESPOND} if budget is None else {"type": "auto"}
             if budget is not None:
                 system = (system + "\n\nИтог верни вызовом инструмента %s." % RESPOND).strip()

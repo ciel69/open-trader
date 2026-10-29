@@ -39,7 +39,7 @@ class RolesAndPrompts(unittest.TestCase):
             self.assertEqual(r.version, ver, rid)
             self.assertTrue(r.prompt.startswith("# prompt v%d %s" % (ver, rid)), rid)
         self.assertEqual(self.reg.get("news_reader").version, 0)            # роль WP13b не тронута
-        self.assertTrue(roles_runtime.read_common(ROOT).startswith("# common v2"))
+        self.assertTrue(roles_runtime.read_common(ROOT).startswith("# common v3"))
 
     def test_prefix_stable_between_loads_and_calls(self):
         other = roles_runtime.load(ROOT)
@@ -53,7 +53,7 @@ class RolesAndPrompts(unittest.TestCase):
         for rid in NEW_ROLES:
             s = self.reg.get(rid).system
             self.assertTrue(s.startswith(common), rid)
-            self.assertLess(s.index("# prompt v"), s.index("СХЕМА ОТВЕТА"), rid)
+            self.assertLess(s.index("# prompt v"), s.index("RESPONSE SCHEMA"), rid)
             self.assertTrue(s.rstrip().endswith("}"), rid)                    # схема в конце
         self.assertEqual(self.reg.get("news_reader").common, "")
 
@@ -79,23 +79,23 @@ class RolesAndPrompts(unittest.TestCase):
 
     def test_common_contains_platform_rules(self):
         c = roles_runtime.read_common(ROOT)
-        for needle in ("5-минутная свеча", "no-confirm", "за экстремум", "30 минут", "час", "Усреднение", "эксперимент", "Paper-первыми", "ДАННЫЕ", "ключи",
-                       "KILL", "только подтягивать", "why", "причина | факт | риск", "один JSON-объект"):
+        for needle in ("5-minute candle", "no-confirm", "beyond the pullback extreme", "30 minutes", "hour", "Averaging", "Experiment", "Paper first", "DATA", "keys",
+                       "KILL", "only be tightened", "why", "reason | fact | risk", "one JSON object"):
             self.assertIn(needle, c, needle)
 
     def test_role_prompts_state_may_and_must_not(self):
         for rid in NEW_ROLES:
             p = self.reg.get(rid).prompt
-            self.assertIn("Можешь", p, rid)
-            self.assertIn("Не можешь", p, rid)
-            self.assertIn("ФОРМАТ", p, rid)
+            self.assertIn("You can", p, rid)
+            self.assertIn("You cannot", p, rid)
+            self.assertIn("FORMAT", p, rid)
         pmp = self.reg.get("position_manager").prompt
-        for needle in ("hold", "move_stop", "partial_close", "cancel", "amend", "hold_plan", "release_plan", "escalate", "ТАБЛИЦА РЕАКЦИЙ", "entry_filled", "session_ending", "connectivity"):
+        for needle in ("hold", "move_stop", "partial_close", "cancel", "amend", "hold_plan", "release_plan", "escalate", "REACTION TABLE", "entry_filled", "session_ending", "connectivity"):
             self.assertIn(needle, pmp, needle)
-        self.assertIn("decision add не существует", pmp)
-        self.assertIn("момент решения", self.reg.get("reviewer").prompt.lower())
-        self.assertIn("сомнение = close", self.reg.get("day_auditor").prompt.lower())
-        self.assertIn("не торговать", self.reg.get("morning_analyst").prompt.lower())
+        self.assertIn("decision add does not exist", pmp)
+        self.assertIn("moment of the decision", self.reg.get("reviewer").prompt.lower())
+        self.assertIn("doubt = close", self.reg.get("day_auditor").prompt.lower())
+        self.assertIn("do not trade", self.reg.get("morning_analyst").prompt.lower())
 
     def test_tools_minimal_and_in_catalog(self):
         for rid in NEW_ROLES:
@@ -576,7 +576,7 @@ class RuntimeWiring(BrainBase):
         r.step()
         self.assertEqual(len(self.gw.tool_calls("stop_plan")), 1)
         req = self.factory.clients["ds-pro"].calls[1]["req"]
-        self.assertIn("КОДЫ", req.messages[-1]["content"])
+        self.assertIn("CODES", req.messages[-1]["content"])
         self.assertIn("STOP_NOT_TIGHTER", req.messages[-1]["content"])
 
     def test_pm_system_prefix_identical_between_jobs_and_has_hash(self):

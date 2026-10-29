@@ -40,7 +40,7 @@ def _result_text(res, limit):
     except (TypeError, ValueError):
         s = json.dumps({"ok": False, "error": "RESULT_NOT_JSON"})
     if len(s) > limit:
-        s = s[:limit] + '…[обрезано, всего %d симв.]' % len(s)
+        s = s[:limit] + '…[truncated, %d chars in total]' % len(s)
     return s
 
 
@@ -69,15 +69,15 @@ def run(call, req, run_tool, max_rounds=8, repeat_limit=2, loop_abort=2, schema=
             for tc in resp.tool_calls:
                 if tc.error:                     # усечённые/некорректные аргументы
                     bad += 1
-                    out = {"ok": False, "error": "BAD_ARGS", "msg": "аргументы не JSON (возможно, ответ усечён): повтори вызов короче"}
+                    out = {"ok": False, "error": "BAD_ARGS", "msg": "arguments are not JSON (the answer may have been cut off): repeat the call, shorter"}
                 elif tc.name not in names:
-                    out = {"ok": False, "error": "UNKNOWN_TOOL", "msg": "инструмент недоступен"}
+                    out = {"ok": False, "error": "UNKNOWN_TOOL", "msg": "tool unavailable"}
                 else:
                     key = (tc.name, _canon(tc.args))
                     seen[key] = seen.get(key, 0) + 1
                     if seen[key] > repeat_limit:
                         res.loop_hits += 1
-                        out = {"ok": False, "error": "REPEAT", "msg": "тот же вызов уже выполнен, повтор не нужен: используй полученный результат или дай итог"}
+                        out = {"ok": False, "error": "REPEAT", "msg": "the same call was already executed, no repeat needed: use the result you got or give the final answer"}
                     else:
                         try:
                             out = run_tool(tc.name, tc.args)
@@ -103,7 +103,7 @@ def run(call, req, run_tool, max_rounds=8, repeat_limit=2, loop_abort=2, schema=
             if empty > empty_retries:
                 res.status = "empty"
                 break
-            msgs.append(user("Ответ пуст. Дай итоговый ответ в требуемом формате."))
+            msgs.append(user("The answer is empty. Give the final answer in the required format."))
             continue
         if schema is not None:
             obj, errs = schema_mod.check_text(resp.text, schema)

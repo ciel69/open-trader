@@ -96,7 +96,7 @@ def build_request(role, payload):
         if p.get("carried_in"):
             parts.append(tag("carried_in", p["carried_in"]))
         if p.get("previous_errors"):
-            parts.append("КОДЫ: " + ", ".join(str(x)[:40] for x in p["previous_errors"][:6]))
+            parts.append("CODES: " + ", ".join(str(x)[:40] for x in p["previous_errors"][:6]))
         caps = p.get("caps") if isinstance(p.get("caps"), dict) else {}
         oc = p.get("owner_choice") if isinstance(p.get("owner_choice"), dict) else {}
         over = {}

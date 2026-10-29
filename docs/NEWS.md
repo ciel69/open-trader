@@ -34,7 +34,7 @@ RSS/объявления --(intel.service, WP13a)--> runtime/intel/items.jsonl (
 - `type`: listing, delisting, maintenance, hack, regulation, macro, etf, unlock, partnership, price_move, rumor, upgrade, outage, other. Тип `suspicious` ставит только код;
 - `imp` 1..5 (целое), `dir`: up|down|neutral|unknown, `ttl_min`: 30|120|360|1440|2880 (срок актуальности: 0.5 ч, 2 ч, 6 ч, 24 ч, 48 ч), `conf` 0..1 (округляется до 0.01).
 Валидатор: `schema.check_text` слоя llm (первый JSON-объект до 8 КБ, дубликаты ключей и NaN запрещены, типы/диапазоны/enum/лишние ключи) + проверка ref (BAD_REF, DUP_REF, MISSING_REF).
-Невалидный ответ: один повтор (`reader.retries=1`), повторное сообщение = то же + `КОДЫ: ...`, ответ модели НЕ цитируется. Второй провал: весь пакет получает заглушку
+Невалидный ответ: один повтор (`reader.retries=1`), повторное сообщение = то же + `CODES: ...`, ответ модели НЕ цитируется. Второй провал: весь пакет получает заглушку
 (`st=fail`, type other, imp 1, conf 0, syms []), счётчик `fail_streak`; 3 провала подряд: пауза 30 мин, `degraded:["reader"]`.
 
 ## Что делает код после читателя (детерминированная политика, не LLM)

@@ -4,7 +4,7 @@ extract_json(text) -> (obj|None, код|None): первый сбалансиро
 validate(schema, value) -> список кодов `ТИП:путь` (BAD_TYPE, BAD_ENUM, BAD_CONST, MISSING, EXTRA_KEY, TOO_SHORT, TOO_LONG, BAD_PATTERN, RANGE,
 TOO_FEW, TOO_MANY, NOT_FINITE, NO_MATCH). Поддержано: type (в т. ч. список), enum, const, minLength/maxLength, pattern, minimum/maximum,
 properties/required/additionalProperties (по умолчанию false), items, minItems/maxItems, anyOf. Целое != bool.
-ask_json(call, req, schema, retries=2) -> JsonResult: до `retries` повторов с подсказкой `КОДЫ: ...` (без цитат ответа), затем ok=False («нет действия»).
+ask_json(call, req, schema, retries=2) -> JsonResult: до `retries` повторов с подсказкой `CODES: ...` (без цитат ответа), затем ok=False («нет действия»).
 """
 import json
 import math
@@ -173,7 +173,7 @@ def check_text(text, schema, max_bytes=MAX_JSON_BYTES):
 
 def hint(codes):
     """Подсказка для повторного запроса: только коды ошибок, без цитат ответа."""
-    return "Ответ не принят. КОДЫ: %s. Верни только один JSON-объект по схеме, без текста до и после." % "; ".join(codes[:MAX_ERRORS])
+    return "Answer rejected. CODES: %s. Return only one JSON object per the schema, with no text before or after." % "; ".join(codes[:MAX_ERRORS])
 
 
 class JsonResult(object):

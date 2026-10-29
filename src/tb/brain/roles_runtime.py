@@ -69,7 +69,7 @@ class Role(object):
         """Стабильный системный текст: роль + схема (sort_keys). Динамики нет."""
         sch = json.dumps(compact_schema(self.schema), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         head = (self.common.rstrip() + "\n\n") if self.common else ""
-        return "%s%s\n\nСХЕМА ОТВЕТА (%s):\n%s\n" % (head, self.prompt.rstrip(), self.output_schema, sch)
+        return "%s%s\n\nRESPONSE SCHEMA (%s):\n%s\n" % (head, self.prompt.rstrip(), self.output_schema, sch)
 
     @property
     def prompt_hash(self):
