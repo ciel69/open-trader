@@ -553,6 +553,19 @@ class BriefPause(unittest.TestCase):
         C.trades = C.trades[:1] + [{"status": "closed", "reason": "tp", "sym": "ETH", "ts_close": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(1_800_000_000.0 - 100))}]
         self.assertNotIn("all", brief_mod._b_pause(C, {"SOL"}))
 
+    def test_paper_mode_has_no_global_pause_but_keeps_symbol_pause(self):
+        """Бумажный режим: общая пауза после двух стопов подряд не действует (решение владельца), пауза по монете и счётчик серии остаются."""
+        class C(object):
+            now = 1_800_000_000.0
+            health = {"data": {"mode": "paper"}}
+            trades = [{"status": "closed", "reason": "sl", "sym": "SOL", "ts_close": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(1_800_000_000.0 - 600))},
+                      {"status": "closed", "reason": "sl", "sym": "ETH", "ts_close": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(1_800_000_000.0 - 300))}]
+        p = brief_mod._b_pause(C, {"SOL"})
+        self.assertNotIn("all", p)
+        self.assertEqual((p["syms"], p["streak"]), ({"SOL": 20}, 2))
+        C.health = {"data": {"mode": "live"}}
+        self.assertEqual(brief_mod._b_pause(C, {"SOL"})["all"], 55)                  # live: прежнее правило
+
 
 if __name__ == "__main__":
     unittest.main()

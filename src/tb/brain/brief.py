@@ -292,7 +292,11 @@ def _b_pause(c, syms):
         streak += 1
         last_ts = last_ts or common.parse_ts(t.get("ts_close"))
     allp = None
-    if streak >= 2 and last_ts is not None and PAUSE_ALL_MIN - (c.now - last_ts) / 60.0 > 0:
+    try:
+        paper = common.ident(c.health["data"].get("mode")) == "paper"
+    except (AttributeError, KeyError, TypeError):
+        paper = False
+    if streak >= 2 and last_ts is not None and not paper and PAUSE_ALL_MIN - (c.now - last_ts) / 60.0 > 0:      # общая пауза в бумажном режиме не действует (решение владельца); пауза по монете остаётся
         allp = int(math.ceil(PAUSE_ALL_MIN - (c.now - last_ts) / 60.0))
     root = getattr(c, "root", None)
     ms = common.read_json(paths.runtime("min_size.json", root=root)) if root else None          # монеты, на которых исполнитель отказал по MIN_SIZE (минут осталось помнить)

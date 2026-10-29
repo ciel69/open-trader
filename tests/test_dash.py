@@ -441,6 +441,19 @@ class TestRiskRoom(Base):
         self.assertTrue(any("стопов подряд" in x for x in r["reasons"]))
         self.assertEqual(self.by(r)["stops"]["level"], "bad")
 
+    def test_paper_day_stop_streak_does_not_halt_entries(self):
+        """Paper: три стопа подряд больше не запрещают входы (как и в guard для бумажных сделок); строка остаётся справочной. В live то же число стопов запрещает вход (test_blocks)."""
+        trades = []
+        for i in "ABC":
+            trades += [op(i, mode="paper"), cl(i, -0.1, reason="sl", ts_close=iso(NOW - 600 + ord(i)))]
+        self.setup_state(trades)
+        self.w("runtime", "exec_snapshot.json", {"ts_epoch": NOW - 1, "env": "paper", "account": {"equity": 40.0, "free": 30.0}, "positions": []})
+        r = self.rr()
+        row = self.by(r)["stops"]
+        self.assertEqual((row["used"], row["limit"], row["level"], row.get("informational")), (3, 3, "ok", True))
+        self.assertFalse(any("стопов подряд" in x for x in r["reasons"]))
+        self.assertIn("paper", row["label"])
+
     def test_pending_takes_slot_and_risk(self):
         pend = {"p": {"id": "P1", "mode": "live", "sym": "ETH", "side": "long", "price": 1.0, "risk_usdt": 0.3, "session": "intraday-1", "ts": NOW - 5}}
         self.setup_state([op("A", risk_usdt=0.2)], pending=pend)
