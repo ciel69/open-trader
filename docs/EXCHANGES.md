@@ -3,6 +3,26 @@
 Сейчас реально работает одна биржа: Bybit (USDT-перпетуалы). Остальные записи реестра (okx, binance) заготовки: `enabled:false`, `implemented:false`, включить нельзя. Реальных вторых
 бирж в проекте нет; всё ниже проверено на ФЕЙКОВОЙ бирже `fake2` (`FakePort`), см. `tests/test_exchanges.py`.
 
+## Подключение ключей Bybit
+
+Ключ биржи нужен только для `testnet` и `live`; paper работает без него (по публичным ценам). Проверена и реализована ТОЛЬКО Bybit (paper, testnet, несколько небольших live-сделок владельца).
+
+1. На Bybit создайте API-ключ. Право вывода (Withdraw) не давать никогда. `read`: только чтение. `trade`: торговля контрактами, по возможности привязка к вашему IP. `testnet`: отдельный аккаунт на testnet.bybit.com.
+2. Сохраните ключ скриптом (запускает владелец в терминале; ввод скрыт, значения нигде не печатаются, файл пишется вне репозитория, права 0600 там, где ОС это поддерживает):
+
+```
+./tb setup bybit --profile read
+./tb setup bybit --profile trade
+./tb setup bybit --profile testnet
+```
+
+   Windows: `.\tb.cmd setup bybit --profile read`. Тот же шаг есть в общем помощнике `./tb setup` (шаг 5). Существующий файл не перезаписывается без слова `да`.
+3. Файлы: `~/.config/traider-bot/bybit_mainnet.env` (read), `bybit_mainnet_trade.env` (trade), `bybit_testnet.env` (testnet); на Windows `%USERPROFILE%\.config\traider-bot\`; другой каталог: `TB_KEYS_DIR`. Формат: строки `BYBIT_ENV`, `BYBIT_API_KEY`, `BYBIT_API_SECRET` (скрипт создаёт их сам; руками тоже можно). Ключ читает только `launcher` и исполнитель; мозг и дашборд ключей не видят, через дашборд ключи бирж не вводятся.
+4. Проверка: `./tb setup --check` (есть ли файл, без чтения значений), затем `./tb bybit read balance` или `./tb bybit testnet balance`.
+5. Порядок включения: paper, затем testnet (`./tb up --profile testnet`), затем live только после paper-истории и с гейтами владельца (дашборд: «Начать торговлю» -> режим «Реальные деньги»).
+
+Другие биржи (okx, binance) в реестре это заготовки без адаптера, включить их нельзя; как добавить новую: раздел «Как добавить биржу» ниже. Для новой биржи понадобится свой скрипт ключей по образцу `./tb setup bybit`.
+
 ## Реестр
 
 * `config/exchanges.json` (+ личный слой `config/local/exchanges.json`): `active` (одна, по умолчанию bybit), `allowed` (для каких бирж запускать исполнители), `exchanges.<id>`:

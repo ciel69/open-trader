@@ -202,6 +202,12 @@ def prepare_sync(argv, environ=None, system=None):
 REQUIRED_FIELDS = ("BYBIT_API_KEY", "BYBIT_API_SECRET")
 
 
+def bybit_env_text(profile, key, secret):
+    """Текст env-файла ключа Bybit для профиля read|trade|testnet (BYBIT_ENV по профилю, затем ключ и секрет). Файл пишет только `./tb setup bybit` (setup_cli)."""
+    env = "testnet" if profile == "testnet" else "mainnet"
+    return "BYBIT_ENV=%s\nBYBIT_API_KEY=%s\nBYBIT_API_SECRET=%s\n" % (env, key, secret)
+
+
 def key_status(profile, environ=None, system=None):
     """Есть ли ключ биржи профиля (read|trade|testnet; также paper -> не нужен). НИКОГДА не возвращает значения: только имя файла, наличие и имена недостающих полей.
     -> {"ok": bool, "profile", "file": имя|None, "missing": [имена полей], "reason": "paper|no_file|unreadable|fields|ok"}."""

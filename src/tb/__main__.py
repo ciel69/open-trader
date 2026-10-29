@@ -97,7 +97,7 @@ USAGE = """использование: ./tb <группа> <команда> [а�
   day <status|list|report [ID]|checklist|preflight> [--json]   жизненный цикл дня: состояние, итоги, сухой прогон чек-листа закрытия, preflight (WP14; только чтение)
   notify <status|on|off|set КАТЕГОРИЯ on|off|set quiet HH:MM-HH:MM|set quiet off|test>   уведомления ОС: мастер, категории, тихие часы (docs/NOTIFICATIONS.md)
   control <token new|status|gates|audit|cmd|run>   плоскость управления: ключ, токен входа, гейты live, аудит, сервис ctl (WP12)
-  setup [--check]   помощник настройки: ключ подписи, токены, ключ DeepSeek (скрытый ввод; другие провайдеры: llm key set; docs/PROVIDERS.ru.md), права, итоговая таблица (docs/QUICKSTART.md)
+  setup [--check] | setup bybit [--profile read|trade|testnet]   помощник настройки: ключ подписи, токены, ключ DeepSeek, ключи Bybit (скрытый ввод; другие провайдеры: llm key set; docs/PROVIDERS.ru.md), права, итоговая таблица (docs/QUICKSTART.md, docs/EXCHANGES.md)
   smoke [--max-seconds N] [--keep]   сквозной прогон paper (фейковый LLM, временный корень, публичные данные Bybit); docs/spec_v2/SMOKE_RESULT.md
   dash [--port 8765] [--open]   локальный дашборд (127.0.0.1): чтение; кнопки управления: paper без токена, опасное (live) по токену один раз
   audit-public [--json] [--root ПУТЬ] [--term СЛОВО] [--strict]   проверка дерева перед публикацией: секреты, личные данные, крупные файлы, лицензия (только чтение; docs/PUBLISH_CHECKLIST.md)

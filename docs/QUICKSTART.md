@@ -94,6 +94,7 @@
 ## Шпаргалка команд
 ```
 ./tb setup [--check]                       помощник настройки / таблица готовности
+./tb setup bybit --profile read|trade|testnet   ключ биржи Bybit (скрытый ввод; нужен только для live/testnet, см. docs/EXCHANGES.md)
 ./tb start | stop | restart                 запуск (всё, в фоне), остановка, перезапуск
 ./tb status | ./tb logs [сервис] [-f]      состояние и журналы
 ./tb day status | day report | day preflight    день, итог, проверка перед стартом

@@ -56,6 +56,50 @@ class Setup(unittest.TestCase):
         rows = dict((n, ok) for n, ok, _ in setup_cli.collect(self.root, self.env))
         self.assertTrue(all(v for v in rows.values() if v is not None), rows)
 
+    def test_bybit_key_written_hidden_with_right_format_and_mode(self):
+        key, sec = "AbCd1234EfGh5678", "SeCrEtSeCrEt0123456789abcdefgh01"
+        h = self.helper([], secrets=[key, sec])
+        h.step_dir()
+        self.assertTrue(h.step_bybit_key("testnet"))
+        p = os.path.join(self.keys, "bybit_testnet.env")
+        with open(p) as f:
+            self.assertEqual(f.read(), "BYBIT_ENV=testnet\nBYBIT_API_KEY=%s\nBYBIT_API_SECRET=%s\n" % (key, sec))
+        if os.name == "posix":
+            self.assertEqual(stat.S_IMODE(os.stat(p).st_mode), 0o600)
+        self.assertNotIn(key, self.text())
+        self.assertNotIn(sec, self.text())                                         # значения на экран не выводятся
+        from tb import launcher
+        self.assertTrue(launcher.key_status("testnet", self.env)["ok"])
+        self.assertTrue(setup_cli.collect(self.root, self.env))                   # таблица строится и с ключом Bybit
+
+    def test_bybit_mainnet_profiles_use_mainnet_env(self):
+        h = self.helper([], secrets=["AbCd1234EfGh5678", "SeCrEtSeCrEt0123456789abcdefgh01", "ZzZz9999YyYy8888", "QqQqQqQq77776666555544443333"])
+        h.step_dir()
+        self.assertTrue(h.step_bybit_key("read"))
+        self.assertTrue(h.step_bybit_key("trade"))
+        for name in ("bybit_mainnet.env", "bybit_mainnet_trade.env"):
+            with open(os.path.join(self.keys, name)) as f:
+                self.assertTrue(f.read().startswith("BYBIT_ENV=mainnet\n"), name)
+
+    def test_bybit_empty_or_bad_value_writes_nothing_and_existing_kept(self):
+        h = self.helper([], secrets=["", "x"])
+        h.step_dir()
+        self.assertFalse(h.step_bybit_key("trade"))
+        self.assertFalse(os.path.exists(os.path.join(self.keys, "bybit_mainnet_trade.env")))
+        h2 = self.helper(["да"], secrets=["AbCd1234EfGh5678", "SeCrEtSeCrEt0123456789abcdefgh01"])
+        self.assertTrue(h2.step_bybit_key("read"))
+        with open(os.path.join(self.keys, "bybit_mainnet.env")) as f:
+            before = f.read()
+        h3 = self.helper([""], secrets=["ZzZz9999YyYy8888", "QqQqQqQq77776666555544443333"])   # Enter = не перезаписывать
+        self.assertFalse(h3.step_bybit_key("read"))
+        with open(os.path.join(self.keys, "bybit_mainnet.env")) as f:
+            self.assertEqual(f.read(), before)
+
+    def test_bybit_cli_requires_tty_and_valid_profile(self):
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(setup_cli.main(["bybit", "--profile", "nope"]), 2)
+            self.assertEqual(setup_cli.main(["bybit", "extra"]), 2)
+
     def test_existing_not_overwritten_without_yes(self):
         self.helper(["да", "да", "да", "1"], secrets=[SECRET]).run()
         with open(os.path.join(self.keys, "control.json")) as f:

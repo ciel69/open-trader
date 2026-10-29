@@ -3,6 +3,10 @@
   ./tb setup            интерактивно: ключ подписи, токен дашборда (печатается ОДИН раз), токен агента шлюза `api` (в файл, не на экран),
                         ключ DeepSeek (скрытый ввод getpass, запись в файл 0600 без печати), проверка прав, итоговая таблица
   ./tb setup --check    только таблица «что готово / чего нет» (без TTY, ничего не меняет, значений не читает и не печатает)
+  ./tb setup bybit [--profile read|trade|testnet]
+                        только ключ биржи Bybit (скрытый ввод API key и secret, запись в ~/.config/traider-bot/bybit_*.env, 0600, без печати).
+                        read: читающий ключ (баланс), trade: торговый mainnet (БЕЗ права вывода), testnet: тестовая сеть. Нужны только для live/testnet;
+                        paper работает без ключа биржи. Проверено только на Bybit (docs/EXCHANGES.md).
 
 Правила: существующее НЕ перезаписывается без явного подтверждения (слово `да` / `yes`); ключи и значения никогда не печатаются и не логируются
 (в выводе только имена файлов и признаки есть/нет). Права: POSIX chmod 0600/0700, Windows icacls (иначе предупреждение).
@@ -11,10 +15,11 @@
 import getpass
 import json
 import os
+import re
 import stat
 import sys
 
-from tb import paths
+from tb import launcher, paths
 from tb.control import auth, cli as ctl_cli
 from tb.gateway import registry
 from tb.llm import keys as llm_keys
@@ -22,6 +27,13 @@ from tb.llm import keys as llm_keys
 AGENT = "api"
 PROVIDER = "deepseek"
 YES = ("да", "д", "yes", "y")
+# профиль ключа Bybit -> пояснение; имена файлов и формат: launcher.PROFILES, launcher.bybit_env_text
+BYBIT = {
+    "read": "читающий ключ mainnet (права только чтение): баланс и сверка капитала; торговать им нельзя",
+    "trade": "торговый ключ mainnet: право Contract Trade, БЕЗ права вывода средств (Withdraw), по возможности привязка к вашему IP",
+    "testnet": "ключ тестовой сети testnet.bybit.com (отдельный аккаунт, деньги не настоящие)",
+}
+_KEY_OK = re.compile(r"^[A-Za-z0-9]{8,128}$")
 
 
 def _is_tty():
@@ -97,6 +109,13 @@ def agent_state(root=None, environ=None):
     return {"agent": isinstance(ag, dict), "hash": bool(isinstance(ag, dict) and ag.get("token_hash")), "file": os.path.isfile(tf)}
 
 
+def _secret_files(kd, kf, env):
+    """Файлы с секретами для проверки прав: ключ подписи, ключ провайдера, токен агента, ключи Bybit."""
+    out = [auth.control_file(env), os.path.join(kd, kf), os.path.join(registry.token_dir(env), AGENT + ".token")]
+    out += [os.path.join(kd, name) for name in launcher.PROFILES.values()]
+    return out
+
+
 def collect(root=None, environ=None):
     """Состояние для итоговой таблицы: [(пункт, ok|None, пояснение)]. Ничего не меняет, значений не читает."""
     env = os.environ if environ is None else environ
@@ -112,8 +131,11 @@ def collect(root=None, environ=None):
     kf, ke = provider_key_spec(root)
     pk = has_provider_key(root, env)
     rows.append(("Ключ DeepSeek (%s)" % kf, pk, "есть" if pk else "нет: шаг 4 (нужен только для живого мозга)"))
+    for prof in ("read", "trade", "testnet"):          # ключи биржи нужны только для live/testnet: отсутствие не ошибка (None)
+        ks = launcher.key_status(prof, env)
+        rows.append(("Ключ Bybit %s" % prof, True if ks["ok"] else None, "есть" if ks["ok"] else "нет (нужен только для live/testnet): ./tb setup bybit --profile %s" % prof))
     bad = []
-    for p in (auth.control_file(env), os.path.join(kd, kf), os.path.join(registry.token_dir(env), AGENT + ".token")):
+    for p in _secret_files(kd, kf, env):
         if os.path.isfile(p) and perms_ok(p) is False:
             bad.append(os.path.basename(p))
     rows.append(("Права файлов ключей", (not bad) if os.name == "posix" else None, "ok (0600)" if not bad and os.name == "posix" else "слишком открыты: %s (помощник исправит)" % ", ".join(bad) if bad else "Windows: проверьте вручную (icacls)"))
@@ -233,12 +255,42 @@ class Helper(object):
         self.out("  ключ записан в %s (значение не показывается). Проверка: ./tb llm check" % os.path.basename(path))
         return True
 
+    def step_bybit_key(self, profile):
+        """Ключ Bybit профиля read|trade|testnet: скрытый ввод key и secret -> bybit_*.env (0600). Значения не печатаются. -> True, если файл записан."""
+        hint = BYBIT[profile]
+        fname = launcher.PROFILES[profile]
+        path = os.path.join(keys_dir(self.env), fname)
+        self.out("  %s: %s" % (profile, hint))
+        self.out("  файл: %s (формат KEY=VALUE по строке; создаёт помощник)." % path)
+        if os.path.isfile(path) and not self.confirm_overwrite("  файл %s" % fname):
+            self.out("  не изменён.")
+            return False
+        key = (self.secret("  API key (ввод скрыт): ") or "").strip()
+        sec = (self.secret("  API secret (ввод скрыт): ") or "").strip()
+        if not (_KEY_OK.match(key) and _KEY_OK.match(sec)):
+            self.out("  пусто или недопустимые символы (ожидаются латинские буквы и цифры, без пробелов и кавычек): ничего не записано.")
+            return False
+        write_secret_file(path, launcher.bybit_env_text(profile, key, sec))
+        key = sec = None
+        st = launcher.key_status(profile, self.env)
+        self.out("  записано: %s (значения не показываются); файл %s." % (fname, "в порядке" if st["ok"] else "неполный: нет " + ", ".join(st["missing"])))
+        self.out("  Проверка связи с биржей: ./tb bybit %s balance" % profile)
+        return True
+
+    def step_exchange(self):
+        self.out("Шаг 5. Ключи биржи Bybit. Нужны только для live и testnet; paper работает без них (по публичным ценам). Проверено только на Bybit (docs/EXCHANGES.md).")
+        done = False
+        for prof in ("read", "trade", "testnet"):
+            if self.yes("  настроить ключ профиля %s?" % prof, default=False):
+                done = self.step_bybit_key(prof) or done
+        return done
+
     def step_perms(self):
-        self.out("Шаг 5. Права файлов ключей.")
+        self.out("Шаг 6. Права файлов ключей.")
         kd = keys_dir(self.env)
         kf, _ke = provider_key_spec(self.root)
         fixed = 0
-        for p in (auth.control_file(self.env), os.path.join(kd, kf), os.path.join(registry.token_dir(self.env), AGENT + ".token")):
+        for p in _secret_files(kd, kf, self.env):
             if os.path.isfile(p) and perms_ok(p) is False:
                 if restrict(p):
                     fixed += 1
@@ -255,6 +307,7 @@ class Helper(object):
         self.step_dash_token()
         self.step_agent_token()
         self.step_provider_key()
+        self.step_exchange()
         self.step_perms()
         rows = collect(self.root, self.env)
         render(rows, self.out)
@@ -270,8 +323,24 @@ def main(argv=None):
     if argv == ["--check"] or argv == ["check"]:
         render(collect())
         return 0
+    if argv and argv[0] == "bybit":
+        rest = argv[1:]
+        prof = rest[1] if len(rest) == 2 and rest[0] == "--profile" else ("read" if not rest else None)
+        if prof not in BYBIT:
+            print("использование: ./tb setup bybit [--profile read|trade|testnet]", file=sys.stderr)
+            return 2
+        if not _is_tty():
+            print("./tb setup bybit нужен интерактивный терминал (ключи вводятся скрытым вводом)", file=sys.stderr)
+            return 2
+        try:
+            h = Helper()
+            h.step_dir()
+            return 0 if h.step_bybit_key(prof) else 1
+        except (KeyboardInterrupt, EOFError):
+            print("\nпрервано", file=sys.stderr)
+            return 130
     if argv:
-        print("использование: ./tb setup [--check]", file=sys.stderr)
+        print("использование: ./tb setup [--check] | ./tb setup bybit [--profile read|trade|testnet]", file=sys.stderr)
         return 2
     if not _is_tty():
         print("./tb setup нужен интерактивный терминал (запускает владелец в Terminal.app). Только таблица: ./tb setup --check", file=sys.stderr)

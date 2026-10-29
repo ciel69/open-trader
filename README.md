@@ -178,6 +178,36 @@ Another vendor (here Gemini):
 
 Any OpenAI-compatible URL and local models (Ollama, LM Studio) are covered in `docs/PROVIDERS.md`. **All templates are unverified with a live key; only Anthropic and DeepSeek have native adapters.** Keep to paper and small budgets (`config/brain.json` -> `budget`). The same screens exist in the dashboard (**System -> Settings**).
 
+## Connect an exchange (Bybit)
+
+Paper needs no exchange key. A key is needed only for `testnet` and `live`.
+
+**Only Bybit is implemented and tested** (USDT-margined perpetuals: paper, testnet and a few small live trades by the maintainer). The registry lists okx and binance as placeholders: they have no adapter, are disabled and cannot be enabled. How to add another exchange is described in `docs/EXCHANGES.md`.
+
+1. On Bybit create an API key. Never give it the Withdraw permission. `read`: read-only. `trade`: contract trading only, restricted to your IP if Bybit allows. `testnet`: a separate account on testnet.bybit.com.
+2. Save the key with the setup script. Input is hidden, nothing is printed, the file is written outside the repository (owner-only permissions where the OS supports them), an existing file is never overwritten without a "yes":
+
+```bash
+./tb setup bybit --profile read
+./tb setup bybit --profile trade
+./tb setup bybit --profile testnet
+```
+
+```powershell
+.\tb.cmd setup bybit --profile read
+```
+
+3. Check that the files are in place (values are never read or printed), then check the connection:
+
+```bash
+./tb setup --check
+./tb bybit read balance
+```
+
+Profiles and files: `read` -> `bybit_mainnet.env` (balance, capital sync), `trade` -> `bybit_mainnet_trade.env` (live trading), `testnet` -> `bybit_testnet.env`, all in `~/.config/traider-bot/` (Windows: `%USERPROFILE%\.config\traider-bot\`, another folder: `TB_KEYS_DIR`). Plain `./tb setup` offers the same as one step of its wizard. Keys are read only by the launcher and the executor; the brain and the dashboard never see them, and exchange keys are never entered in the dashboard.
+
+Order of enabling: paper, then testnet (`./tb up --profile testnet`), then live, only after a paper history and with the owner's gates (dashboard: **Start trading** -> mode **Real money** -> accept the warnings -> confirm).
+
 ## What you will see
 
 All screenshots below are synthetic fixture data (`tests/fixtures_v2/gen.py`), not a real account. The dashboard UI language is Russian. How to regenerate: `docs/images/README.md`.
