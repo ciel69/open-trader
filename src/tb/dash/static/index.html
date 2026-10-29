@@ -125,6 +125,14 @@
       </section>
       <!-- Рынок -->
       <section id="tab-market" class="panel-tab" role="tabpanel" aria-labelledby="t-market" hidden>
+        <section class="block" id="heat-block">
+          <h2>Тепловая карта <span id="heat-age" class="sub"></span></h2>
+          <p class="muted small">Топ монет по обороту: цвет показывает величину и знак (зелёный рост, красное падение), число всегда рядом. Строка раскрывается: карта ликвидаций за сутки (где выбивали лонги и шорты).</p>
+          <div class="seg" id="heat-sort" role="group" aria-label="Сортировка карты"></div>
+          <div id="heat-liq" class="small"></div>
+          <div class="scroll-x"><table id="heat" class="rt heat-tbl"></table></div>
+          <div id="heat-empty" class="empty" hidden></div>
+        </section>
         <div class="cols2">
           <section class="block"><h2>Горячие монеты <span id="hot-age" class="sub"></span></h2><table id="hot" class="rt"></table><div id="hot-empty" class="empty" hidden></div><div class="more-row"><button id="hot-more" class="btn" type="button" hidden></button></div><div id="hot-blocked" class="muted small"></div></section>
           <section class="block"><h2>Отслеживаемые монеты <span id="mkt-age" class="sub"></span></h2><table id="market" class="rt"></table><div id="mkt-empty" class="empty" hidden></div></section>

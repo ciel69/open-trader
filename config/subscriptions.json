@@ -40,7 +40,11 @@
           "range_5m",
           "turnover_surge",
           "patrol",
-          "idea_level"
+          "idea_level",
+          "oi_spike",
+          "oi_flush",
+          "funding_extreme",
+          "liq_cascade"
         ]
       },
       "rate": {

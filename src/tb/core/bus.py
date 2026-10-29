@@ -60,7 +60,8 @@ EVENT_TYPES = {
     "news_flash": PRI_WAKE,            # быстрые новости (intel/flash.py): класс, подсказка направления, важность, источник; БЕЗ текста заголовка
 }
 WAKE_MILESTONES = ("r_plus_1", "r_minus_05", "near_target", "target_filled")
-SCANNER_KINDS = ("range_5m", "turnover_surge", "hot_enter", "patrol", "idea_near", "idea_level", "idea_invalidated", "idea_tp", "idea_expired")
+SCANNER_KINDS = ("range_5m", "turnover_surge", "hot_enter", "patrol", "idea_near", "idea_level", "idea_invalidated", "idea_tp", "idea_expired",
+                 "oi_spike", "oi_flush", "funding_extreme", "liq_cascade")        # последние четыре: деривативы (hotscan.DerivGate, marketdata/liqwatch.py)
 BRAIN_WAKE_CODES = ("R_PLUS", "R_MINUS", "NEAR_TARGET", "CHECK_PLAN", "TIME")
 LIMIT_WHICH = ("daily_loss", "stop_streak", "session_budget", "max_open", "drawdown_halt", "cooldown", "rate", "brain_budget", "brain_down")
 RECONCILE_KINDS = ("orphan_position", "position_drift", "missing_stop", "unknown_order", "equity_mismatch")
@@ -102,7 +103,8 @@ _RE_ROT = re.compile(r"^events-(\d{8})(?:-(\d+))?\.jsonl$")
 _ENUM_DIR = ("enum", ("up", "down", "long", "short"))
 D_FIELDS = {
     "scanner_signal": {"kind": ("enum", SCANNER_KINDS), "px": "num", "score": "num", "dir": _ENUM_DIR, "range_5m_pct": "num", "ret_5m_pct": "num",
-                       "turn_surge_5m": "num", "spread_bps": "num", "funding_pct": "num", "idea": "idea", "wake": "bool"},
+                       "turn_surge_5m": "num", "spread_bps": "num", "funding_pct": "num", "idea": "idea", "wake": "bool",
+                       "oi_chg_15m_pct": "num", "oi_chg_1h_pct": "num", "liq_usd": "num", "liq_side": ("enum", ("long", "short"))},
     "plan_armed": {"rev": "num", "codes": "ids", "preview": "numdict"},
     "plan_rejected": {"rev": "num", "codes": "ids", "preview": "numdict"},
     "trigger_fired": {"cond": "id", "level": "num", "px": "num"},

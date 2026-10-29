@@ -1030,6 +1030,21 @@ def hot_info(root, now):
             "warm": h.get("warm"), "stats": h.get("stats") or {}, "top": pick(h.get("top")), "blocked": pick(h.get("blocked"))}
 
 
+def deriv_info(root, now):
+    """Тепловая карта и ликвидации для вкладки «Рынок»: runtime/heat.json (пишет скан: те же тикеры, без запросов) и runtime/liq.json (поток ликвидаций liqwatch). Только чтение."""
+    out = {"heat": {"available": False}, "liq": {"available": False}}
+    h = read_json(paths.runtime("heat.json", root=root))
+    if isinstance(h, dict) and isinstance(h.get("rows"), list):
+        cols = [c for c in (h.get("cols") or []) if isinstance(c, str)]
+        out["heat"] = {"available": True, "age_s": _age(h.get("ts_epoch"), h.get("ts"), now), "cols": cols,
+                       "rows": [r for r in h["rows"][:100] if isinstance(r, dict) and isinstance(r.get("sym"), str)]}
+    q = read_json(paths.runtime("liq.json", root=root))
+    if isinstance(q, dict) and isinstance(q.get("syms"), list):
+        out["liq"] = {"available": True, "age_s": _age(q.get("ts_epoch"), q.get("ts"), now), "totals": q.get("totals_1h") or {}, "n_total": q.get("n_total"),
+                      "syms": [r for r in q["syms"][:60] if isinstance(r, dict) and isinstance(r.get("sym"), str)]}
+    return out
+
+
 IDEAS_LIMIT = 80
 AUTO_RECENT = 12
 
@@ -1216,6 +1231,11 @@ def build_state(root=None, mode="live", venue="all", now=None):
         v2 = model2.v2_state(root, now, mkt, sp, scan, sess_view)
     except Exception as e:   # слой v2 не должен ронять прежний дашборд
         v2 = {"available": False, "error": type(e).__name__}
+    if isinstance(v2, dict):
+        try:                                 # тепловая карта и ликвидации живут внутри v2: верхний уровень состояния для прежнего интерфейса не меняется
+            v2["derivs"] = deriv_info(root, now)
+        except Exception:
+            v2["derivs"] = {"heat": {"available": False}, "liq": {"available": False}}
     return scrub({
         "now": now, "now_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
         "filter": {"mode": mode, "venue": venue, "modes": modes, "venues": venues},

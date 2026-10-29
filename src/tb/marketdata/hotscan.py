@@ -45,8 +45,11 @@ from tb.marketdata import ideawatch, outcomes
 
 DEFAULTS = {"top": 10, "min_turnover": 5e6, "max_spread_bps": 8.0, "max_lot": 15.0, "range_pct": 0.8, "ref15_pct": 1.5,
             "surge_min": 4.0, "enter_score": 2.0, "cooldown": 1200.0, "interval": 30.0, "max_per_scan": 2, "global_gap": 60.0, "max_per_hour": 12,
-            "wake_score": 4.0, "max_quiet_per_scan": 5, "outcome_min": "15,60", "blocked_n": 5, "keep_s": 1260.0, "cover": 0.75, "ins_refresh_s": 3600.0, "max_seconds": 0.0,
-            "idea_zone_pct": ideawatch.ZONE_PCT, "idea_cooldown": ideawatch.COOLDOWN_S}
+            "wake_score": 4.0, "max_quiet_per_scan": 5, "outcome_min": "15,60", "blocked_n": 5, "keep_s": 3720.0, "cover": 0.75, "ins_refresh_s": 3600.0, "max_seconds": 0.0,
+            "idea_zone_pct": ideawatch.ZONE_PCT, "idea_cooldown": ideawatch.COOLDOWN_S,
+            # деривативы (из тех же тикеров, без новых запросов): OI за 15м, фандинг; события oi_spike / oi_flush / funding_extreme
+            "oi_pct": 4.0, "oi_flat_ret_pct": 1.0, "oi_flush_ret_pct": 1.0, "funding_ext_pct": 0.05, "min_oi_musd": 1.0, "deriv_cooldown": 1800.0,
+            "deriv_wake_score": 1.5, "deriv_max_loud_per_hour": 6, "deriv_max_per_scan": 4, "heat_n": 80}
 SUFFIX = "USDT"
 
 
@@ -213,6 +216,8 @@ class HotScanner:
                  "turn_surge_5m": turnover_surge(h, now, t["turn24"], 300, cv), "chg_24h_pct": t["chg24"]}
             r15 = ref_sample(h, now, 900, cv)
             oi_chg = 100.0 * (t["oi"] / r15[2] - 1.0) if r15 and r15[2] and t["oi"] else None
+            r60 = ref_sample(h, now, 3600, cv)
+            oi_chg_1h = 100.0 * (t["oi"] / r60[2] - 1.0) if r60 and r60[2] and t["oi"] else None
             score, reasons = score_row(m, p)
             skip, lot = [], None
             if ins is None:
@@ -229,7 +234,7 @@ class HotScanner:
                    "corr_group": base in self.corr, "chg_24h_pct": r_(t["chg24"], 2), "ret_5m_pct": r_(m["ret_5m_pct"]),
                    "ret_15m_pct": r_(m["ret_15m_pct"]), "range_5m_pct": r_(m["range_5m_pct"]), "range_15m_pct": r_(m["range_15m_pct"]),
                    "turn_24h_musd": round(t["turn24"] / 1e6, 1), "turn_x_median": r_(t["turn24"] / med, 2) if med else None,
-                   "turn_surge_5m": r_(m["turn_surge_5m"], 2), "oi_chg_15m_pct": r_(oi_chg, 2), "funding_pct": r_(t["funding_pct"], 4),
+                   "turn_surge_5m": r_(m["turn_surge_5m"], 2), "oi_chg_15m_pct": r_(oi_chg, 2), "oi_chg_1h_pct": r_(oi_chg_1h, 2), "oi_musd": r_((t["oi"] or 0.0) * t["price"] / 1e6, 2), "funding_pct": r_(t["funding_pct"], 4),
                    "spread_bps": round(sp, 2), "lot_usdt": r_(lot, 2)}
             if ins is not None:
                 row.update({"min_qty": ins["min_qty"], "qty_step": ins["qty_step"], "tick": ins["tick"],
@@ -308,6 +313,113 @@ def make_event(kind, r, now=0.0, wake=True):
           "spread_bps": r["spread_bps"], "funding_pct": r["funding_pct"], "corr_group": r["corr_group"], "tradable": r["tradable"],
           "note": "информационно: не сигнал входа; проверь guard и тезис"}
     return ev
+
+
+class DerivGate:
+    """События по деривативам из строк скана (OI и фандинг уже в тикерах, запросов не добавляет): oi_spike (OI вырос за 15м), oi_flush (OI упал при сильном движении цены),
+    funding_extreme (|фандинг| выше порога). Cooldown на (вид, монета), громких не больше deriv_max_loud_per_hour в час, остальные тихие (лог и статистика исходов)."""
+
+    def __init__(self, p):
+        self.p = dict(DEFAULTS, **p)
+        self.last = {}                       # (kind, sym) -> ts
+        self.recent = []                     # ts громких за час
+
+    def _kind(self, r):
+        p = self.p
+        oi, ret, fr = r.get("oi_chg_15m_pct"), r.get("ret_15m_pct"), r.get("funding_pct")
+        if (r.get("oi_musd") or 0.0) < p["min_oi_musd"]:
+            return None, 0.0
+        if fr is not None and abs(fr) >= p["funding_ext_pct"]:
+            return "funding_extreme", min(abs(fr) / p["funding_ext_pct"], 3.0)
+        if oi is not None and oi >= p["oi_pct"]:
+            return "oi_spike", min(oi / p["oi_pct"], 3.0)
+        if oi is not None and oi <= -p["oi_pct"] and ret is not None and abs(ret) >= p["oi_flush_ret_pct"]:
+            return "oi_flush", min(abs(oi) / p["oi_pct"], 3.0)
+        return None, 0.0
+
+    def pick(self, rows, now):
+        p = self.p
+        cands = []
+        for r in rows:
+            kind, score = self._kind(r)
+            if kind and now - self.last.get((kind, r["sym"]), -1e18) >= p["deriv_cooldown"]:
+                cands.append((score, kind, r))
+        cands.sort(key=lambda c: -c[0])
+        self.recent = [t for t in self.recent if now - t < 3600.0]
+        out = []
+        for score, kind, r in cands[:p["deriv_max_per_scan"]]:
+            self.last[(kind, r["sym"])] = now
+            wake = score >= p["deriv_wake_score"] and len(self.recent) < p["deriv_max_loud_per_hour"]
+            if wake:
+                self.recent.append(now)
+            out.append(make_deriv_event(kind, r, score, now, wake))
+        return out
+
+
+def make_deriv_event(kind, r, score, now=0.0, wake=True):
+    ret = r.get("ret_15m_pct")
+    oi = r.get("oi_chg_15m_pct")
+    reasons = []
+    if oi is not None:
+        reasons.append("OI 15м %+.1f%%" % oi)
+    if r.get("funding_pct") is not None:
+        reasons.append("фандинг %+.3f%%" % r["funding_pct"])
+    if ret is not None:
+        reasons.append("цена 15м %+.1f%%" % ret)
+    d = None
+    if kind in ("oi_spike", "oi_flush") and ret is not None and abs(ret) >= 0.3:
+        d = "up" if ret > 0 else "down"                      # направление уже случившегося движения цены, не прогноз
+    return {"id": "%s-%s-%s" % (time.strftime("%d%H%M%S", time.gmtime(now)), r["sym"], kind[:3]), "wake": wake, "type": kind, "sym": r["sym"], "price": r["price"], "score": round(score, 2),
+            "reasons": reasons, "range_5m_pct": r.get("range_5m_pct"), "ret_5m_pct": r.get("ret_5m_pct"), "direction": d, "oi_chg_15m_pct": oi, "oi_chg_1h_pct": r.get("oi_chg_1h_pct"),
+            "chg_24h_pct": r.get("chg_24h_pct"), "turn_24h_musd": r.get("turn_24h_musd"), "funding_pct": r.get("funding_pct"), "spread_bps": r.get("spread_bps"),
+            "corr_group": r.get("corr_group"), "tradable": r.get("tradable"), "note": "информационно: не сигнал входа; проверь guard и тезис"}
+
+
+class LiqTail:
+    """Хвост лога событий: каскады ликвидаций, которые дописывает marketdata/liqwatch.py (отдельный поток, быстрее скана), попадают и в статистику исходов (+15/+60 мин)."""
+
+    def __init__(self, path):
+        self.path = path
+        try:
+            self.pos = os.path.getsize(path)
+        except OSError:
+            self.pos = 0
+
+    def poll(self):
+        try:
+            size = os.path.getsize(self.path)
+        except OSError:
+            return []
+        if size < self.pos:
+            self.pos = 0
+        if size == self.pos:
+            return []
+        with open(self.path, "rb") as f:
+            f.seek(self.pos)
+            data = f.read()
+        nl = data.rfind(b"\n")
+        if nl < 0:
+            return []
+        self.pos += nl + 1
+        out = []
+        for ln in data[:nl].split(b"\n"):
+            try:
+                r = json.loads(ln.decode("utf-8", "replace"))
+            except ValueError:
+                continue
+            if isinstance(r, dict) and r.get("type") == "liq_cascade" and r.get("sym") and r.get("price"):
+                out.append(r)
+        return out
+
+
+HEAT_COLS = ("price", "chg_24h_pct", "ret_5m_pct", "ret_15m_pct", "range_5m_pct", "turn_surge_5m", "oi_chg_15m_pct", "oi_chg_1h_pct", "oi_musd", "funding_pct", "turn_24h_musd", "score")
+
+
+def build_heat(rows, env, now, n=80):
+    """Широкая таблица для тепловой карты дашборда: топ-n монет по обороту, колонки HEAT_COLS (None = нет данных). Без запросов: те же строки скана."""
+    rows = sorted(rows, key=lambda r: -(r.get("turn_24h_musd") or 0.0))[:n]
+    return {"ts": iso(now), "ts_epoch": now, "env": env, "cols": list(HEAT_COLS),
+            "rows": [dict({"sym": r["sym"], "tradable": bool(r.get("tradable"))}, **{c: r.get(c) for c in HEAT_COLS}) for r in rows]}
 
 
 # ---------- ввод-вывод ----------
@@ -402,7 +514,9 @@ def run(c, p, watch, out=sys.stdout, hot_path=None, log_path=None, clock=time.ti
     prices_path = prices_path or (os.path.join(os.path.dirname(hot_path), "prices.json") if hot_path else paths.runtime("prices.json"))
     hot_path = hot_path or paths.runtime("hot.json")
     emit = Emitter(out, log_path or paths.runtime("hot_events.jsonl"), c.env)
-    sc, gate = HotScanner(p, corr_symbols()), EventGate(p)
+    sc, gate, dgate = HotScanner(p, corr_symbols()), EventGate(p), DerivGate(p)
+    ltail = LiqTail(emit.log_path)
+    heat_path = os.path.join(os.path.dirname(hot_path), "heat.json") if hot_path else paths.runtime("heat.json")
     # состояние статистики: рядом с лог-файлом, если путь задан явно (тесты), иначе state/ и runtime/ проекта
     sd = state_dir or (os.path.dirname(log_path) if log_path else None)
     hours = [int(x) for x in str(p["outcome_min"]).split(",") if x.strip().isdigit()]
@@ -431,6 +545,10 @@ def run(c, p, watch, out=sys.stdout, hot_path=None, log_path=None, clock=time.ti
             top, trad, blocked, stats = sc.step(tickers, ins, now)
             warm = bool(top) and all(r["range_15m_pct"] is not None for r in top[:3])
             write_hot(hot_path, build_payload(p, c.env, now, top, blocked, stats, warm))
+            try:                                  # тепловая карта: широкая таблица метрик; сбой записи не роняет сканер
+                write_hot(heat_path, build_heat(trad + blocked, c.env, now, p["heat_n"]))
+            except OSError:
+                pass
             try:                                  # цены всех монет для дашборда; сбой записи не должен ронять сканер
                 write_prices(prices_path, build_prices(tickers, c.env, now))
             except OSError:
@@ -452,6 +570,17 @@ def run(c, p, watch, out=sys.stdout, hot_path=None, log_path=None, clock=time.ti
             for ev in gate.pick(top, trad, now):
                 emit(ev, now)
                 tracker.add_event(ev, now)
+            try:                                  # каскады ликвидаций из потока liqwatch: только в статистику исходов (события уже в логе)
+                for ev in ltail.poll():
+                    tracker.add_event(ev, now)
+            except Exception:
+                pass
+            try:                                  # деривативы: OI и фандинг из тех же тикеров; громкие ограничены, тихие идут в статистику исходов
+                for ev in dgate.pick(trad, now):
+                    emit(ev, now)
+                    tracker.add_event(ev, now)
+            except Exception:
+                pass
             try:                                  # будильник по идеям агента: свой антиспам, в трекер исходов не идёт
                 for ev in watcher.check(tickers, now):
                     emit(ev, now)

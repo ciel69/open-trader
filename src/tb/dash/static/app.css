@@ -863,6 +863,22 @@ body.st-lock { overflow: hidden; }
 .plan .ic-main { gap: 8px; } .plan .ic-lvl, .plan .ic-big { font-size: 17px; } .plan .ic-lab { font-size: 10.5px; }
 .plan .lad-bar { margin: 4px 6px 0; }
 .ic-big.pos { color: var(--pos); } .ic-big.neg { color: var(--neg); }
+
+/* ===== рынок: тепловая карта и карта ликвидаций ===== */
+#heat-block .seg { margin: 6px 0 8px; flex-wrap: wrap; }
+#heat-liq { margin: 0 0 8px; }
+.heat-tbl td.hc { font-variant-numeric: tabular-nums; border-radius: 4px; }
+.heat-tbl .heat-row { cursor: pointer; }
+.heat-tbl .heat-row:hover td { box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--text) 5%, transparent); }
+.heat-tbl .heat-row[aria-expanded="true"] td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.heat-tbl .heat-det > td { padding: 10px 12px; background: var(--panel2); }
+.liqmap { display: flex; flex-direction: column; gap: 3px; max-width: 520px; }
+.lm-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.lm-row.is-cur { outline: 1px solid var(--accent); border-radius: 4px; }
+.lm-bars { position: relative; height: 12px; background: var(--track); border-radius: 3px; overflow: hidden; }
+.lm-bars i { position: absolute; top: 0; bottom: 0; display: block; }
+.lm-l { right: 50%; background: var(--neg); border-radius: 3px 0 0 3px; } .lm-s { left: 50%; background: var(--pos); border-radius: 0 3px 3px 0; }
+.lm-bars::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line2); }
 .st-line { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 .st-line .st-fl { flex: none; }
 .st-modal .st-line input[type=text] { width: 84px; flex: none; text-align: right; padding: 6px 10px; border-radius: 8px; }
