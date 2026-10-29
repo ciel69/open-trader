@@ -385,6 +385,22 @@ class TestRiskRoom(Base):
         self.assertAlmostEqual(nr["usdt"], 0.1)                                    # ограничен остатком бюджета сессии (1.2-0.9-0.2)
         self.assertEqual(nr["limited_by"], "бюджет сессии")
 
+    def test_paper_day_counts_open_paper_positions_from_snapshot(self):
+        """Paper-день: открытые бумажные позиции есть только в снимке исполнителя (в журнал попадают при закрытии). Слоты, риск и число сделок обязаны их учитывать,
+        иначе блок показывает полный запас при занятых слотах (ошибка с 3 позициями SOL/HAEDAL/BLUR: «Слоты 3 из 3», «Под риском 0.00»)."""
+        self.setup_state([])
+        pos = lambda sym, size, avg, sl: {"sym": sym, "side": "long", "size": size, "avg": avg, "sl": sl, "owner": "plan:PL-1-%s-01" % sym}
+        self.w("runtime", "exec_snapshot.json", {"ts_epoch": NOW - 1, "env": "paper", "account": {"equity": 40.0, "free": 30.0},
+                                                 "positions": [pos("SOL", 0.3, 100.0, 99.0), pos("ETH", 2.0, 50.0, 49.5)]})
+        rows = self.by(self.rr())
+        self.assertEqual((rows["slots"]["used"], rows["slots"]["limit"], rows["slots"]["open"]), (2, 2, 2))
+        self.assertAlmostEqual(rows["daily"]["open_risk"], 0.3 * 1.0 + 2.0 * 0.5)                   # риск до стопа по снимку
+        self.assertEqual(rows["trades"]["used"], 2)
+        self.assertFalse(self.rr()["allowed"])                                                      # слоты заняты: входы запрещены
+        self.w("runtime", "exec_snapshot.json", {"ts_epoch": NOW - 1, "env": "mainnet", "positions": [pos("SOL", 0.3, 100.0, 99.0)]})
+        rows = self.by(self.rr())
+        self.assertEqual((rows["slots"]["used"], rows["daily"]["open_risk"]), (0, 0.0))             # live-день: снимок не учитывается (позиции в журнале)
+
     def test_next_risk_uses_default_type_multiplier_without_session(self):
         """Недочёт 4б: без активной сессии множитель по результатам берётся как у guard/portfolio для типа по умолчанию (intraday, испытательный срок ×0.5), а не ×1.00."""
         from tb.core import portfolio

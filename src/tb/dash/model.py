@@ -748,15 +748,42 @@ def _room_row(id_, label, limit, used, room, unit, help_, extra=None):
     return r
 
 
+def _paper_snapshot_open(root, journal_open):
+    """Открытые бумажные позиции исполнителя: снимок runtime/exec_snapshot.json (env=paper). В журнал сделок такая позиция попадает только при закрытии, поэтому без снимка
+    блок лимитов её не видит. -> (число, риск до стопа USDT) для позиций, которых нет среди открытых записей журнала (по монете). Не paper-снимок или нет файла: (0, 0.0)."""
+    snap = read_json(paths.exec_snapshot_file(root=root))
+    if not isinstance(snap, dict) or snap.get("env") != "paper":
+        return 0, 0.0
+    have = set(t.get("sym") for t in journal_open)
+    n, risk = 0, 0.0
+    for p in snap.get("positions") if isinstance(snap.get("positions"), list) else []:
+        if not isinstance(p, dict) or p.get("sym") in have:
+            continue
+        n += 1
+        size, avg, sl = num(p.get("size")), num(p.get("avg")), num(p.get("sl"))
+        if size and avg and sl:
+            risk += size * abs(avg - sl)
+    return n, risk
+
+
+def _paper_day(root):
+    """Исполнитель в paper (по снимку): учёт запаса ведётся по бумажным сделкам, иначе по live."""
+    snap = read_json(paths.exec_snapshot_file(root=root))
+    return isinstance(snap, dict) and snap.get("env") == "paper"
+
+
 def risk_room(root, trades, prof, port, active, now):
     """«Запас до лимитов»: сколько ещё можно торговать до ограничений риск-менеджмента. Числа считаются по тем же формулам, что реально
     блокируют вход (core/guard.py: day_state/check/evaluate, core/session.py: stats/verdict, core/portfolio.py: scaled_profile/dd_mult/perf_mult,
-    core/learning.py: progress). Дневной учёт как в guard: только live-сделки, сутки по UTC. Без символа: корреляционный потолок не входит."""
-    live = [t for t in trades if t.get("mode") == "live"]
+    core/learning.py: progress). Учёт по режиму исполнителя: в live только live-сделки (как в guard), в paper бумажные сделки и открытые бумажные позиции из снимка
+    исполнителя (их нет в журнале до закрытия); сутки по UTC. Без символа: корреляционный потолок не входит."""
+    paper_day = _paper_day(root)
+    live = [t for t in trades if t.get("mode") == ("paper" if paper_day else "live")]
     today = time.strftime("%Y-%m-%d", time.gmtime(now))
     open_t = [t for t in live if t["status"] == "open"]
     closed_today = [t for t in live if t["status"] == "closed" and str(t.get("ts_close") or "").startswith(today)]
-    pend = _pending_live(root)
+    snap_n, snap_risk = _paper_snapshot_open(root, open_t) if paper_day else (0, 0.0)
+    pend = [] if paper_day else _pending_live(root)
     pend_risk = sum(num(r.get("risk_usdt"), 0.0) for r in pend)
     realized = sum(t.get("pnl_usdt") or 0.0 for t in closed_today)
     streak = 0
@@ -765,7 +792,7 @@ def risk_room(root, trades, prof, port, active, now):
             streak += 1
         else:
             break
-    open_risk = sum(t.get("risk_usdt") or 0.0 for t in open_t) + pend_risk
+    open_risk = sum(t.get("risk_usdt") or 0.0 for t in open_t) + pend_risk + snap_risk
     equity = portfolio.total(port)
     p2 = dict(prof)
     if prof.get("daily_loss_frac") is not None and equity > 0:       # portfolio.scaled_profile: лимит дня = доля текущего капитала
@@ -781,11 +808,11 @@ def risk_room(root, trades, prof, port, active, now):
     if daily_room <= 0:
         reasons.append("нет остатка дневного лимита риска")
     mx = num(p2.get("max_open_positions"), 0)
-    used_slots = len(open_t) + len(pend)
+    used_slots = len(open_t) + len(pend) + snap_n
     if mx:
         rows.append(_room_row("slots", "Слоты позиций", mx, used_slots, mx - used_slots, "шт.",
                               "Открытые позиции плюс ждущие лимитные заявки не могут превышать max_open_positions. Ждущий лимит занимает слот, потому что может исполниться в любой момент.",
-                              {"open": len(open_t), "pending": len(pend)}))
+                              {"open": len(open_t) + snap_n, "pending": len(pend)}))
         if used_slots >= mx:
             reasons.append("заняты все слоты (%d из %d)" % (used_slots, mx))
     ms = num(p2.get("max_consecutive_stops"), 0)
@@ -806,7 +833,7 @@ def risk_room(root, trades, prof, port, active, now):
         s_closed = [t for t in rows_s if t["status"] == "closed"]
         s_pend = [r for r in _pending_live_all(root) if r.get("session") == active["id"]]
         s_real = sum(t.get("pnl_usdt") or 0.0 for t in s_closed)
-        s_orisk = sum(t.get("risk_usdt") or 0.0 for t in rows_s if t["status"] == "open") + sum(num(r.get("risk_usdt"), 0.0) for r in s_pend)
+        s_orisk = sum(t.get("risk_usdt") or 0.0 for t in rows_s if t["status"] == "open") + sum(num(r.get("risk_usdt"), 0.0) for r in s_pend) + snap_risk
         budget = num(active.get("budget_usdt"), 0.0)
         sess_room = budget + s_real - s_orisk
         rows.insert(0, _room_row("session", "Бюджет убытка сессии", budget, max(0.0, budget - sess_room), sess_room, "USDT",
@@ -815,7 +842,7 @@ def risk_room(root, trades, prof, port, active, now):
         if sess_room <= 0:
             reasons.append("бюджет убытка сессии исчерпан")
         mt = sess_cfg.get("max_trades")
-        n_tr = len(rows_s) + len(s_pend)
+        n_tr = len(rows_s) + len(s_pend) + snap_n
         if mt:
             rows.append(_room_row("trades", "Сделок в сессии", mt, n_tr, mt - n_tr, "шт.", "Лимит числа сделок для этого типа сессии (открытые, закрытые и ждущие лимиты)."))
             if n_tr >= mt:
