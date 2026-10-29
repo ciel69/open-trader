@@ -208,6 +208,10 @@ def _apply_v2_event(t, ev, r):
         t["qty"], t["notional"] = left, left * t["entry"]
         t["margin"] = (t.get("margin") or 0.0) * frac
         pnl = num(r.get("pnl"), 0.0)
+        fo = t.get("fee_open")
+        if fo is not None:       # комиссия входа делится по долям: остаток несёт свою часть, закрытая часть уходит в зафиксированное (сумма не меняется)
+            t["fee_open"] = fo * frac
+            fee = fee + fo * (1.0 - frac)
         t["realized_parts"] = (t.get("realized_parts") or 0.0) + pnl
         t["fees_parts"] = (t.get("fees_parts") or 0.0) + fee
         t.setdefault("parts", []).append({"ts": ts, "px": px, "qty": part_q, "fee": fee, "pnl": pnl})

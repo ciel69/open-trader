@@ -556,7 +556,9 @@ class TestJournalV2Events(unittest.TestCase):
         self.assertAlmostEqual(t["qty"], 0.1)
         self.assertAlmostEqual(t["notional"], 10.0)
         self.assertAlmostEqual(t["margin"], 1.0)
-        self.assertEqual((t["realized_parts"], t["fees_parts"]), (0.1, 0.004))
+        self.assertEqual(t["realized_parts"], 0.1)
+        self.assertAlmostEqual(t["fee_open"], 0.005)                  # комиссия входа (0.01) делится по долям: остаток несёт половину
+        self.assertAlmostEqual(t["fees_parts"], 0.004 + 0.005)        # вторая половина уходит в зафиксированное, сумма комиссий не меняется
         self.assertEqual(t["status"], "open")
 
     def test_open_pnl_includes_parts(self):
@@ -566,8 +568,10 @@ class TestJournalV2Events(unittest.TestCase):
             json.dump({"ts_epoch": NOW, "prices": {"SOL": 101.0}}, f)
         st = model.build_state(self.root, "all", "all", NOW)
         t = st["open_trades"][0]
-        self.assertAlmostEqual(st["open_pnl"], t["calc"]["pnl"] + 0.1 - 0.004)
+        self.assertAlmostEqual(st["open_pnl"], t["calc"]["pnl"] + 0.1 - 0.009)
         self.assertEqual(t["calc"]["realized_parts"], 0.1)
+        # итог не зависит от распределения комиссии входа: остаток + зафиксированное = как при полной комиссии на остатке
+        self.assertAlmostEqual(t["calc"]["pnl"] + 0.1 - 0.009, (t["calc"]["pnl"] - 0.005) + 0.1 - 0.004)
 
     def test_adjust_keeps_initial_stop(self):
         self.jl([self.OPEN, {"ev": "adjust", "id": "T1", "ts": "2026-10-27T12:06:00Z", "sl": 100.0, "tp": 104.0, "by": "rule"},
