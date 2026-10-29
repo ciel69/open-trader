@@ -468,7 +468,7 @@ class RoleFiles(unittest.TestCase):
         self.assertFalse(r.live_risk)
         self.assertEqual(r.output_schema, "entry/1")
         self.assertEqual(r.wake_on, ["scanner_signal", "news_flash"])
-        self.assertEqual(r.wake_kinds, ["hot_enter", "range_5m", "turnover_surge", "patrol", "idea_level", "oi_spike", "oi_flush", "funding_extreme", "liq_cascade"])
+        self.assertEqual(r.wake_kinds, ["hot_enter", "range_5m", "turnover_surge", "patrol", "idea_level", "oi_spike", "oi_flush", "funding_extreme", "liq_cascade", "cvd_divergence", "book_wall"])
         self.assertEqual(r.scope, "team")
         self.assertEqual([k for k in r.wake_kinds if k.startswith("idea_")], ["idea_level"])      # цена у уровня идеи (план дня) будит роль; idea_near/invalidated/tp нет
         brain = jl(os.path.join(ROOT, "config", "brain.json"))

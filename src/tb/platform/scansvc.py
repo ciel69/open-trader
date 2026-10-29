@@ -29,7 +29,8 @@ from tb.platform import services as S
 _SYM = re.compile(r"^[A-Z0-9]{2,20}$")
 _IDEA = re.compile(r"^I\d+$")
 NUM_KEYS = (("price", "px"), ("score", "score"), ("range_5m_pct", "range_5m_pct"), ("ret_5m_pct", "ret_5m_pct"), ("turn_surge_5m", "turn_surge_5m"),
-            ("spread_bps", "spread_bps"), ("funding_pct", "funding_pct"), ("oi_chg_15m_pct", "oi_chg_15m_pct"), ("oi_chg_1h_pct", "oi_chg_1h_pct"), ("liq_usd", "liq_usd"))
+            ("spread_bps", "spread_bps"), ("funding_pct", "funding_pct"), ("oi_chg_15m_pct", "oi_chg_15m_pct"), ("oi_chg_1h_pct", "oi_chg_1h_pct"), ("liq_usd", "liq_usd"),
+            ("cvd_pct", "cvd_pct"), ("wall_usd", "wall_usd"), ("wall_dist_pct", "wall_dist_pct"), ("xex_bps", "xex_bps"))
 MAX_DEDUP_KEYS = 4000
 
 
@@ -104,6 +105,8 @@ class Publisher(object):
             d["dir"] = direction
         if r.get("liq_side") in ("long", "short"):
             d["liq_side"] = r["liq_side"]
+        if r.get("wall_side") in ("bid", "ask"):
+            d["wall_side"] = r["wall_side"]
         iid = r.get("idea") if isinstance(r.get("idea"), str) else (r.get("id") if kind.startswith("idea_") else None)
         if isinstance(iid, str) and _IDEA.match(iid):
             d["idea"] = iid
@@ -345,6 +348,7 @@ def run(root, cfg, client=None, clock=time.time, sleep=time.sleep, stop=lambda: 
     beat(True)
     th = _start_structure(root, scfg, stop) if structure else None
     lth = _start_liq(root, scfg, stop) if structure else None          # только в боевом запуске сервиса (как и структура), в тестах цикла сеть не трогаем
+    fth = _start_flow(root, scfg, stop) if structure else None
     try:
         code = hotscan.run(client, params_of(scfg), True, out=_Null(), clock=clock, sleep=sleeper, **hs_kwargs)
     except _Stop:
@@ -381,6 +385,20 @@ def _start_liq(root, scfg, stop):
     from tb.marketdata import liqwatch
     lcfg.setdefault("env", scfg.get("env") or "mainnet")
     th = threading.Thread(target=liqwatch.run_loop, args=(root, lcfg), kwargs={"stop": stop, "log": lambda m: print(m, flush=True)}, name="liqwatch", daemon=True)
+    th.start()
+    return th
+
+
+def _start_flow(root, scfg, stop):
+    """Поток ордерфлоу (marketdata/flowwatch.py): сделки и стакан небольшого набора монет + разрыв с Binance -> runtime/flow.json и события cvd_divergence / book_wall / xex_gap.
+    Выключается scan.flow.enabled=false; свой сокет, ошибки гасятся внутри, поток демон."""
+    fcfg = dict(scfg.get("flow") or {})
+    if not fcfg.get("enabled", True):
+        return None
+    import threading
+    from tb.marketdata import flowwatch
+    fcfg.setdefault("env", scfg.get("env") or "mainnet")
+    th = threading.Thread(target=flowwatch.run_loop, args=(root, fcfg), kwargs={"stop": stop, "log": lambda m: print(m, flush=True)}, name="flowwatch", daemon=True)
     th.start()
     return th
 

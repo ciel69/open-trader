@@ -375,8 +375,11 @@ def make_deriv_event(kind, r, score, now=0.0, wake=True):
             "corr_group": r.get("corr_group"), "tradable": r.get("tradable"), "note": "информационно: не сигнал входа; проверь guard и тезис"}
 
 
+TAIL_TYPES = ("liq_cascade", "cvd_divergence", "book_wall", "xex_gap")      # события отдельных потоков (liqwatch, flowwatch): в статистику исходов через хвост лога
+
+
 class LiqTail:
-    """Хвост лога событий: каскады ликвидаций, которые дописывает marketdata/liqwatch.py (отдельный поток, быстрее скана), попадают и в статистику исходов (+15/+60 мин)."""
+    """Хвост лога событий: каскады ликвидаций и ордерфлоу, которые дописывают отдельные потоки (marketdata/liqwatch.py, flowwatch.py; быстрее скана), попадают и в статистику исходов (+15/+60 мин)."""
 
     def __init__(self, path):
         self.path = path
@@ -407,7 +410,7 @@ class LiqTail:
                 r = json.loads(ln.decode("utf-8", "replace"))
             except ValueError:
                 continue
-            if isinstance(r, dict) and r.get("type") == "liq_cascade" and r.get("sym") and r.get("price"):
+            if isinstance(r, dict) and r.get("type") in TAIL_TYPES and r.get("sym") and r.get("price"):
                 out.append(r)
         return out
 

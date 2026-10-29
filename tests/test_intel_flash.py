@@ -128,6 +128,50 @@ class Process(unittest.TestCase):
         self.assertEqual(flash.recent_for(self.root, "XYZ", NOW + 5000), [])
 
 
+class Macro(Process):
+    EV = [{"id": "cpi-2026-11-10", "type": "CPI", "ts": NOW, "impact": 3}]
+
+    def test_big_move_after_release_emits_macro_flash_with_direction(self):
+        self.price(dict(UNI, BTC=80000.0), NOW - 30)
+        self.f.macro_step(self.EV, NOW - 30)                                      # цена перед выходом цифры
+        self.price(dict(UNI, BTC=80400.0), NOW + 61)
+        self.assertEqual(self.f.macro_step(self.EV, NOW + 61), 1)
+        t, d, sym = self.sent[-1]
+        self.assertEqual((t, sym, d["cls"], d["dir"], d["imp"], d["src"]), ("news_flash", "BTC", "macro", "up", 4, "calendar"))
+        self.assertEqual(self.f.macro_step(self.EV, NOW + 70), 0)                 # одно событие один раз
+        f2 = flash.Flash(self.root, {}, clock=lambda: NOW + 120, emit=lambda *a: self.sent.append(a))
+        self.price(dict(UNI, BTC=80400.0), NOW + 120)
+        self.assertEqual(f2.macro_step(self.EV, NOW + 120), 0)                    # и после перезапуска
+        self.price(dict(UNI, BTC=80800.0), NOW + 301)
+        self.f.track(NOW + 61)
+        self.f.track(NOW + 301)
+        out = [r for r in flash.read_rows(self.root) if r["ev"] == "outcome" and r["sym"] == "BTC"]
+        self.assertEqual([r["h"] for r in out], [1, 5])                           # исходы считаются от самого релиза, не от момента записи
+        self.assertAlmostEqual(out[1]["ret_pct"], 1.0, places=2)
+
+    def test_small_reaction_is_recorded_quietly_and_hidden_from_brief(self):
+        self.price(dict(UNI, BTC=80000.0), NOW - 10)
+        self.f.macro_step(self.EV, NOW - 10)
+        self.price(dict(UNI, BTC=80010.0), NOW + 61)
+        self.assertEqual(self.f.macro_step(self.EV, NOW + 61), 1)
+        self.assertEqual(self.sent, [])                                           # движения нет: события нет
+        row = [r for r in flash.read_rows(self.root) if r["ev"] == "flash"][0]
+        self.assertEqual((row["cls"], row["dir"], row["emitted"]), ("macro", "none", False))
+        self.assertEqual(flash.recent_for(self.root, "BTC", NOW + 62), [])        # в brief.flash тихая реакция не попадает
+
+    def test_skips_low_impact_missing_pre_price_and_out_of_window(self):
+        self.price(dict(UNI, BTC=80000.0), NOW - 10)
+        self.f.macro_step(self.EV, NOW - 10)
+        self.price(dict(UNI, BTC=80400.0), NOW + 61)
+        self.assertEqual(self.f.macro_step([dict(self.EV[0], impact=1)], NOW + 61), 0)          # слабое событие
+        self.assertEqual(self.f.macro_step(self.EV, NOW + 30), 0)                                # рано: прошло меньше macro_delay_s
+        self.price(dict(UNI, BTC=80400.0), NOW + 2000)
+        self.assertEqual(self.f.macro_step(self.EV, NOW + 2000), 0)                              # окно реакции закрылось
+        fresh = flash.Flash(self.root, {}, clock=lambda: NOW + 61, emit=lambda *a: self.sent.append(a))
+        self.price(dict(UNI, BTC=80400.0), NOW + 61)
+        self.assertEqual(fresh.macro_step(self.EV, NOW + 61), 0)                                 # платформа не видела цену до выхода: реакцию не считаем
+
+
 class BriefAndBus(Process):
     def test_brief_block_and_bus_whitelist(self):
         import types

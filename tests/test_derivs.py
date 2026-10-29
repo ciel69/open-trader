@@ -93,7 +93,12 @@ class DashModel(unittest.TestCase):
         root = tempfile.mkdtemp(prefix="tbheat_")
         try:
             os.makedirs(os.path.join(root, "runtime"))
-            self.assertEqual(model.deriv_info(root, NOW), {"heat": {"available": False}, "liq": {"available": False}})
+            self.assertEqual(model.deriv_info(root, NOW), {"heat": {"available": False}, "liq": {"available": False}, "flow": {"available": False}})
+            with open(os.path.join(root, "runtime", "flow.json"), "w", encoding="utf-8") as f:
+                json.dump({"ts_epoch": NOW - 2, "xex_ok": True, "syms": [{"sym": "BTC", "cvd_5m_pct": -20.0}, "junk"]}, f)
+            fl = model.deriv_info(root, NOW)["flow"]
+            self.assertEqual((fl["available"], fl["xex_ok"], [r["sym"] for r in fl["syms"]]), (True, True, ["BTC"]))
+            os.remove(os.path.join(root, "runtime", "flow.json"))
             with open(os.path.join(root, "runtime", "heat.json"), "w", encoding="utf-8") as f:
                 json.dump(H.build_heat([row("A", turn_24h_musd=5.0), row("B", turn_24h_musd=9.0)], "mainnet", NOW), f)
             with open(os.path.join(root, "runtime", "liq.json"), "w", encoding="utf-8") as f:

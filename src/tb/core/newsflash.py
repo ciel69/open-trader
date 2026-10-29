@@ -15,7 +15,7 @@ def read_rows(root=None):
 
 def recent_for(root, sym, now, max_age_s=1800.0, n=3):
     """Для досье мозга: flash по монете за последние max_age_s: [{cls, dir, imp, age_s, move_pct}] (move_pct = изменение цены с момента новости к последней цене)."""
-    rows = [r for r in read_rows(root) if r.get("ev") == "flash" and r.get("sym") == sym and now - float(r.get("ts") or 0) <= max_age_s]
+    rows = [r for r in read_rows(root) if r.get("ev") == "flash" and r.get("sym") == sym and r.get("emitted", True) and now - float(r.get("ts") or 0) <= max_age_s]
     if not rows:
         return []
     cur = (ideas.price_book(root, now).get(sym) or (None,))[0]

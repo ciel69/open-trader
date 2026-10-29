@@ -1031,8 +1031,9 @@ def hot_info(root, now):
 
 
 def deriv_info(root, now):
-    """Тепловая карта и ликвидации для вкладки «Рынок»: runtime/heat.json (пишет скан: те же тикеры, без запросов) и runtime/liq.json (поток ликвидаций liqwatch). Только чтение."""
-    out = {"heat": {"available": False}, "liq": {"available": False}}
+    """Тепловая карта, ликвидации и ордерфлоу для вкладки «Рынок»: runtime/heat.json (пишет скан: те же тикеры, без запросов), runtime/liq.json (поток liqwatch) и runtime/flow.json
+    (поток flowwatch: CVD, стакан, разрыв с Binance по небольшому набору монет). Только чтение."""
+    out = {"heat": {"available": False}, "liq": {"available": False}, "flow": {"available": False}}
     h = read_json(paths.runtime("heat.json", root=root))
     if isinstance(h, dict) and isinstance(h.get("rows"), list):
         cols = [c for c in (h.get("cols") or []) if isinstance(c, str)]
@@ -1042,6 +1043,10 @@ def deriv_info(root, now):
     if isinstance(q, dict) and isinstance(q.get("syms"), list):
         out["liq"] = {"available": True, "age_s": _age(q.get("ts_epoch"), q.get("ts"), now), "totals": q.get("totals_1h") or {}, "n_total": q.get("n_total"),
                       "syms": [r for r in q["syms"][:60] if isinstance(r, dict) and isinstance(r.get("sym"), str)]}
+    fl = read_json(paths.runtime("flow.json", root=root))
+    if isinstance(fl, dict) and isinstance(fl.get("syms"), list):
+        out["flow"] = {"available": True, "age_s": _age(fl.get("ts_epoch"), fl.get("ts"), now), "xex_ok": fl.get("xex_ok"),
+                       "syms": [r for r in fl["syms"][:24] if isinstance(r, dict) and isinstance(r.get("sym"), str)]}
     return out
 
 

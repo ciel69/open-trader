@@ -67,7 +67,7 @@ function renderHot() {
 // ---- тепловая карта: топ монет по обороту, колонки из runtime/heat.json, ликвидации из runtime/liq.json; цвет = знак и величина, число всегда рядом
 var HEAT_COLS_UI = [["chg_24h_pct", "24ч", 10, "pct"], ["ret_5m_pct", "5м", 1.5, "pct"], ["ret_15m_pct", "15м", 2.5, "pct"], ["range_5m_pct", "Диапазон 5м", 2, "mag"],
   ["turn_surge_5m", "Оборот ×", 5, "mag1"], ["oi_chg_15m_pct", "ΔOI 15м", 5, "pct"], ["oi_chg_1h_pct", "ΔOI 1ч", 10, "pct"], ["funding_pct", "Фандинг", 0.05, "fund"]];
-var HEAT_SORTS = [["act", "Активность"], ["ret_15m_pct", "Цена 15м"], ["oi_chg_15m_pct", "ΔOI 15м"], ["funding_pct", "Фандинг"], ["liq", "Ликвидации"], ["turn_24h_musd", "Оборот 24ч"]];
+var HEAT_SORTS = [["act", "Активность"], ["ret_15m_pct", "Цена 15м"], ["oi_chg_15m_pct", "ΔOI 15м"], ["funding_pct", "Фандинг"], ["liq", "Ликвидации"], ["flow", "Ордерфлоу"], ["turn_24h_musd", "Оборот 24ч"]];
 var heatSort = "act";
 var heatOpen = {};          // раскрытые строки карты переживают обновление таблицы (скан раз в 30 с)
 function heatShade(v, scale, mode) {
@@ -99,15 +99,29 @@ function liqMap(l, px) {
       el("span", { class: "lm-v small muted", text: (r.long ? "L " + kfmt(r.long) : "") + (r.long && r.short ? " · " : "") + (r.short ? "S " + kfmt(r.short) : "") }), cur ? el("span", { class: "chip", text: "цена здесь" }) : null);
   }));
 }
-function heatSortKey(r, liq) {
-  if (heatSort === "act") return Math.abs(r.ret_15m_pct || 0) / 2.5 + Math.abs(r.oi_chg_15m_pct || 0) / 5 + Math.abs(r.funding_pct || 0) / 0.05 + (r.turn_surge_5m || 0) / 5 + (liq ? (liq.long_1h + liq.short_1h) / 2e5 : 0);
+function heatSortKey(r, liq, fl) {
+  if (heatSort === "flow") return fl ? Math.abs(fl.cvd_5m_pct || 0) + Math.abs(fl.imb_pct || 0) : -1;           // монеты без потока ордерфлоу в конце
+  if (heatSort === "act") return Math.abs(r.ret_15m_pct || 0) / 2.5 + Math.abs(r.oi_chg_15m_pct || 0) / 5 + Math.abs(r.funding_pct || 0) / 0.05 + (r.turn_surge_5m || 0) / 5 + (liq ? (liq.long_1h + liq.short_1h) / 2e5 : 0) + (fl ? Math.abs(fl.cvd_5m_pct || 0) / 25 : 0);
   if (heatSort === "liq") return liq ? liq.long_1h + liq.short_1h : 0;
   if (heatSort === "turn_24h_musd") return r.turn_24h_musd || 0;
   return Math.abs(r[heatSort] || 0);
 }
+function flowKv(fl) {
+  return [["Агрессия за 5 мин", "купили " + kfmt(fl.buy_5m_usd) + " · продали " + kfmt(fl.sell_5m_usd) + " USD (" + spc(fl.cvd_5m_pct, 0) + ")"],
+    ["Крупные принты 5м", fl.big_5m_n ? fl.big_5m_n + " шт., баланс " + (fl.big_5m_usd >= 0 ? "+" : "−") + kfmt(Math.abs(fl.big_5m_usd)) + " USD" : "нет"],
+    ["Стакан у цены", isn(fl.bid_usd) ? "bid " + kfmt(fl.bid_usd) + " · ask " + kfmt(fl.ask_usd) + " USD, спред " + fx(fl.spread_bps, 2) + " б.п." : "–"],
+    ["Binance", isn(fl.xex_bps) ? (fl.xex_bps >= 0 ? "Bybit дороже на " : "Bybit дешевле на ") + fx(Math.abs(fl.xex_bps), 1) + " б.п." : "нет данных"]];
+}
+function flowWalls(fl) {
+  var w = fl.walls || [];
+  return el("div", null, el("h3", { text: "Стены в стакане" }), w.length ? el("ul", { class: "lst" }, w.map(function (x) {
+    return el("li", { class: "ev" }, el("b", { class: x.side === "bid" ? "pos" : "neg", text: x.side === "bid" ? "bid (поддержка)" : "ask (сопротивление)" }), el("span", { class: "mono", text: " " + price(x.px) }),
+      el("span", { class: "muted small", text: " · " + kfmt(x.usd) + " USD · " + fx(x.dist_pct, 2) + "% от цены · " + (x.stable ? "стоит " + dur(x.age_s) : "появилась " + dur(x.age_s) + " назад, может мигать") }));
+  })) : el("div", { class: "muted small", text: "Крупных стен в стакане нет." }));
+}
 var heatSig = null;
 function renderHeat() {
-  var D = (S.v2 && S.v2.derivs) || {}, H = D.heat || { available: false }, L = D.liq || { available: false }, tbl = $("heat"), empty = $("heat-empty");
+  var D = (S.v2 && S.v2.derivs) || {}, H = D.heat || { available: false }, L = D.liq || { available: false }, FL = D.flow || { available: false }, tbl = $("heat"), empty = $("heat-empty");
   segment($("heat-sort"), HEAT_SORTS.map(function (s) { return [s[0], s[1]]; }), heatSort, function (v) { heatSort = v; heatSig = null; renderHeat(); });
   if (!H.available || !H.rows.length) {
     put("heat-age", ""); put("heat-liq", ""); tbl.hidden = true;
@@ -118,16 +132,18 @@ function renderHeat() {
   put("heat-age", ["· ", tk("heat", H.age_s, "ago"), H.age_s > 120 ? " · данные устарели, сканер не обновляет карту" : ""]);
   var liqBy = {};
   (L.syms || []).forEach(function (q) { liqBy[q.sym] = q; });
+  var flBy = {};
+  (FL.syms || []).forEach(function (q) { flBy[q.sym] = q; });
   if (L.available) {
     var t = L.totals || {};
     put("heat-liq", ["Ликвидации за час (топ монет): лонги ", el("b", { class: "neg", text: kfmt(t.long) }), " · шорты ", el("b", { class: "pos", text: kfmt(t.short) }), " USD", isn(L.age_s) && L.age_s > 60 ? el("span", { class: "muted", text: " · поток ликвидаций не обновляется" }) : ""]);
   } else put("heat-liq", el("span", { class: "muted", text: "Поток ликвидаций не запущен или пока без данных (runtime/liq.json)." }));
-  var rows = H.rows.slice().sort(function (a, b) { return heatSortKey(b, liqBy[b.sym]) - heatSortKey(a, liqBy[a.sym]); }).slice(0, 40);
-  var sig = JSON.stringify([heatSort, rows.map(function (r) { return [r.sym, r.price, r.ret_15m_pct, r.oi_chg_15m_pct, r.funding_pct, (liqBy[r.sym] || {}).long_1h, (liqBy[r.sym] || {}).short_1h]; })]);
+  var rows = H.rows.slice().sort(function (a, b) { return heatSortKey(b, liqBy[b.sym], flBy[b.sym]) - heatSortKey(a, liqBy[a.sym], flBy[a.sym]); }).slice(0, 40);
+  var sig = JSON.stringify([heatSort, rows.map(function (r) { return [r.sym, r.price, r.ret_15m_pct, r.oi_chg_15m_pct, r.funding_pct, (liqBy[r.sym] || {}).long_1h, (liqBy[r.sym] || {}).short_1h, (flBy[r.sym] || {}).cvd_5m_pct, (flBy[r.sym] || {}).imb_pct, (flBy[r.sym] || {}).xex_bps]; })]);
   if (sig === heatSig) { tkReg("heat", H.age_s, "ago"); return; }
   heatSig = sig;
   tbl.replaceChildren();
-  var head = [["Монета", 0], ["Цена", 1]].concat(HEAT_COLS_UI.map(function (c) { return [c[1], 1]; }), [["Ликвидации 1ч", 1]]);
+  var head = [["Монета", 0], ["Цена", 1]].concat(HEAT_COLS_UI.map(function (c) { return [c[1], 1]; }), [["Ликвидации 1ч", 1], ["CVD 5м", 1], ["Стакан", 1], ["Binance", 1]]);
   tbl.appendChild(el("thead", null, el("tr", null, head.map(function (h) { return el("th", { class: h[1] ? "num" : "", text: h[0] }); }))));
   var body = el("tbody");
   rows.forEach(function (r) {
@@ -135,12 +151,16 @@ function renderHeat() {
     var cells = [{ t: [el("b", { text: r.sym }), r.tradable ? null : [" ", chip("нельзя", "warn")]], l: "Монета" }, { t: price(r.price), c: "num", l: "Цена" }];
     HEAT_COLS_UI.forEach(function (c) { cells.push({ t: heatText(r[c[0]], c[3]), c: "num hc", s: heatShade(r[c[0]], c[2], c[3]), l: c[1] }); });
     cells.push({ t: q ? [el("span", { class: "neg", text: kfmt(q.long_1h) }), " / ", el("span", { class: "pos", text: kfmt(q.short_1h) })] : "–", c: "num", l: "Ликвидации 1ч" });
+    var fl = flBy[r.sym];
+    cells.push({ t: fl ? spc(fl.cvd_5m_pct, 0) : "–", c: "num hc", s: fl ? heatShade(fl.cvd_5m_pct, 40, "pct") : "", l: "CVD 5м" });
+    cells.push({ t: fl && isn(fl.imb_pct) ? spc(fl.imb_pct, 0) : "–", c: "num hc", s: fl && isn(fl.imb_pct) ? heatShade(fl.imb_pct, 60, "pct") : "", l: "Стакан" });
+    cells.push({ t: fl && isn(fl.xex_bps) ? sg(fl.xex_bps, 1) + " б.п." : "–", c: "num", l: "Binance" });
     var tr = el("tr", { class: "heat-row", tabindex: "0", "aria-expanded": heatOpen[r.sym] ? "true" : "false" });
     cells.forEach(function (c) { tr.appendChild(el("td", { class: c.c || "", style: c.s || null, "data-l": c.l }, c.t)); });
     var det = el("tr", { class: "heat-det", hidden: !heatOpen[r.sym] }, el("td", { colspan: String(cells.length) },
       el("div", { class: "cols2" }, [el("div", null, el("h3", { text: "Карта ликвидаций за сутки: " + r.sym }), q ? liqMap(q, r.price) : el("div", { class: "muted small", text: "По монете ликвидаций за сутки нет в потоке (или монета вне подписки)." })),
         el("div", null, el("h3", { text: "Метрики" }), kvgrid([["Оборот 24ч", isn(r.turn_24h_musd) ? fx(r.turn_24h_musd, 0) + " млн USD" : "–"], ["Открытый интерес", isn(r.oi_musd) ? fx(r.oi_musd, 1) + " млн USD" : "–"],
-          ["Счёт сканера", fx(r.score, 2)], ["Ликвидаций за час", q ? String(q.n_1h) : "0"]]))])));
+          ["Счёт сканера", fx(r.score, 2)], ["Ликвидаций за час", q ? String(q.n_1h) : "0"]].concat(fl ? flowKv(fl) : []))), fl ? flowWalls(fl) : null])));
     function toggle() { var on = det.hidden; det.hidden = !on; heatOpen[r.sym] = on; tr.setAttribute("aria-expanded", on ? "true" : "false"); }
     tr.addEventListener("click", toggle);
     tr.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });

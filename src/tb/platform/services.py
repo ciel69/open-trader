@@ -93,6 +93,7 @@ DEFAULTS = {
             "enabled": True, "every_s": 300.0, "min_level": 4, "hot_n": 2,
         },
         "liq": {"enabled": True, "min_usd": 100000.0, "window_s": 300.0, "cooldown_s": 900.0, "max_loud_per_hour": 6, "n_syms": 80},      # поток ликвидаций (marketdata/liqwatch.py)
+        "flow": {"enabled": True, "n_syms": 12, "xex": True},                                                                            # ордерфлоу: сделки, стакан, разрыв с Binance (marketdata/flowwatch.py)
         "structure": {                  # поток структуры рынка внутри сканера (marketdata/structure.py): runtime/structure.json для досье мозга
             "enabled": True, "env": "mainnet", "every_s": 60.0, "h1_every_s": 600.0, "max_syms": 16,
             "hot_n": 8, "hot_every_s": 180.0, "hot_h1_every_s": 1800.0, "pause_s": 2.0,   # топ-8 горячих монет сверх BTC/ETH/SOL и позиций; пауза между запросами свечей

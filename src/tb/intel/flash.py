@@ -13,11 +13,13 @@ import hashlib
 import json
 import re
 import time
+from collections import deque
 
 from tb import paths
 from tb.core import ideas, newsflash
 
-DEFAULTS = {"enabled": True, "min_imp": 3, "max_age_s": 900.0, "dedup_s": 1800.0, "horizons_min": [1, 5, 15], "max_syms": 2, "aliases": {}}
+DEFAULTS = {"enabled": True, "min_imp": 3, "max_age_s": 900.0, "dedup_s": 1800.0, "horizons_min": [1, 5, 15], "max_syms": 2, "aliases": {},
+            "macro_move_pct": 0.25, "macro_min_impact": 2, "macro_delay_s": 60.0, "macro_window_s": 900.0}
 CLASSES = ("hack", "delisting", "listing", "etf", "regulation", "unlock", "maintenance", "macro")
 DIRS = ("up", "down", "none")
 MARKET_WIDE = ("macro", "regulation", "etf")          # без монеты в заголовке: событие по BTC как барометру рынка
@@ -98,6 +100,8 @@ class Flash(object):
         self.log = log or (lambda m: None)
         self.pending = []                # [{id,sym,ts,px0,dir,hs:[ещё не снятые горизонты]}]
         self._last = {}                  # (cls, sym) -> ts последнего события (дедуп)
+        self._btc = deque(maxlen=1800)   # (t, цена BTC) до макро-релиза: цена перед выходом цифры
+        self._macro_done = set()         # id макро-событий, по которым реакция уже записана (переживает перезапуск через реестр)
         self._load(clock())
 
     def _load(self, now):
@@ -106,6 +110,8 @@ class Flash(object):
         done = {}
         flashes = []
         for r in read_rows(self.root):
+            if r.get("ev") == "flash" and r.get("src") == "calendar":
+                self._macro_done.add(r.get("id"))
             if r.get("ev") == "flash" and now - float(r.get("ts") or 0) <= max(self.cfg["dedup_s"], max(hs) * 60 + 60):
                 flashes.append(r)
             elif r.get("ev") == "outcome":
@@ -163,6 +169,47 @@ class Flash(object):
                         self.log("flash: событие не записано (%s)" % type(e).__name__)
                 out.append(row)
         return out
+
+    def macro_step(self, events, now=None):
+        """Реакция цены BTC на макро-релиз из календаря (CPI, NFP, FOMC, ...). Без консенсус-прогноза «сюрприз» по цифре не посчитать, поэтому мерка реакция цены: цена BTC перед выходом
+        (последняя за 2 минуты до ts) против цены через macro_delay_s после. Движение от macro_move_pct -> news_flash (macro, направление по знаку движения, важность 4); любая реакция
+        пишется в реестр (emitted False у тихих), исходы через 1/5/15 минут от самого релиза. Каждое событие один раз. -> число записанных реакций."""
+        now = self.clock() if now is None else now
+        c = self.cfg
+        hit = ideas.price_book(self.root, now).get(BELLWETHER)
+        if hit and (not self._btc or now - self._btc[-1][0] >= 1.0):
+            self._btc.append((now, hit[0]))
+        n = 0
+        for e in events or ():
+            try:
+                eid, ts, imp = str(e["id"]), float(e["ts"]), int(e.get("impact") or 0)
+            except (KeyError, TypeError, ValueError):
+                continue
+            rid = "fm" + hashlib.sha1(eid.encode("utf-8")).hexdigest()[:10]
+            if rid in self._macro_done or imp < c["macro_min_impact"] or not (ts + c["macro_delay_s"] <= now <= ts + c["macro_window_s"]):
+                continue
+            pre = next((px for t, px in reversed(self._btc) if ts - 120.0 <= t <= ts), None)
+            if pre is None or not hit:
+                continue                                         # нет цены до релиза (платформа была выключена): реакцию не считаем
+            self._macro_done.add(rid)
+            move = 100.0 * (hit[0] / pre - 1.0)
+            loud = abs(move) >= c["macro_move_pct"]
+            d = "up" if move > 0 else "down" if move < 0 else "none"
+            row = {"ev": "flash", "id": rid, "ts": round(ts, 1), "cls": "macro", "dir": d if loud else "none", "imp": 4 if loud else 2, "sym": BELLWETHER, "src": "calendar", "px0": pre,
+                   "age_s": int(now - ts), "emitted": bool(loud and self.emit is not None)}
+            try:
+                ideas.append(ledger_path(self.root), row)
+            except (OSError, TimeoutError) as ex:
+                self.log("flash: макро-реакция не записана (%s)" % type(ex).__name__)
+                continue
+            self.pending.append({"id": rid, "sym": BELLWETHER, "ts": ts, "px0": float(pre), "dir": row["dir"], "hs": [int(h) for h in c["horizons_min"]]})
+            if row["emitted"]:
+                try:
+                    self.emit("news_flash", {"cls": "macro", "dir": d, "imp": 4, "src": "calendar", "age_s": row["age_s"], "id": rid}, now, BELLWETHER)
+                except (ValueError, OSError, TimeoutError) as ex:
+                    self.log("flash: событие не записано (%s)" % type(ex).__name__)
+            n += 1
+        return n
 
     def track(self, now=None):
         """Исходы: через h минут после flash берём цену и пишем ret_pct (к px0) и dir_pct (по подсказке направления; none -> без знака). -> сколько записано."""

@@ -219,6 +219,10 @@ class Service(object):
         except Exception as e:  # noqa: BLE001
             self.log("intel: сбой читателя (%s)" % type(e).__name__)
         try:
+            self.flash.macro_step(self._events, now)      # реакция BTC на макро-релиз из календаря
+        except Exception as e:  # noqa: BLE001
+            self.log("intel: сбой макро-реакции (%s)" % type(e).__name__)
+        try:
             self.flash.track(now)                         # исходы новостей через 1/5/15 минут
         except Exception as e:  # noqa: BLE001
             self.log("intel: сбой учёта исходов новостей (%s)" % type(e).__name__)

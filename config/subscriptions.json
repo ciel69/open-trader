@@ -44,7 +44,9 @@
           "oi_spike",
           "oi_flush",
           "funding_extreme",
-          "liq_cascade"
+          "liq_cascade",
+          "cvd_divergence",
+          "book_wall"
         ]
       },
       "rate": {
