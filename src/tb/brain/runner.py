@@ -670,11 +670,41 @@ class Runner(object):
             return "KILL"
         return None
 
+    WATCH_TTL_H = 4.0
+    WATCH_MAX_ACTIVE = 10
+    WATCH_MAX_PER_SYM = 2
+    WATCH_DUP_PCT = 0.3
+
+    def _watch_idea(self, obj, job, ctx, why):
+        """Пропуск с уровнем (obj.watch) -> идея watching в state/ideas.jsonl: на уровне сканер пошлёт idea_level. Дубли (та же монета, сторона, уровень в 0.3%) и переполнение
+        (по монете, всего) не пишем. -> id идеи или None. Сбой записи не ломает решение."""
+        w = obj.get("watch")
+        sym = ctx.get("sym") or job.get("sym")
+        if not isinstance(w, dict) or not sym:
+            return None
+        try:
+            from tb.core import ideas
+            act = [i for i in ideas.load_ideas(self.root) if (i.get("status") or "idea") in ideas.ACTIVE]
+            same = [i for i in act if i.get("sym") == sym]
+            if len(act) >= self.WATCH_MAX_ACTIVE or len(same) >= self.WATCH_MAX_PER_SYM:
+                return None
+            for i in same:
+                lv = i.get("level")
+                if i.get("side") == w["side"] and lv and abs(lv - w["level"]) / lv * 100.0 <= self.WATCH_DUP_PCT:
+                    return None
+            note = "%s | пропуск %s" % (why, obj.get("skip_code") or "other")
+            rec = ideas.add_idea(sym, w["side"], note[:300], level=w["level"], stop=w["stop"], tp=w["tp"], tag=w.get("setup") if w.get("setup") != "none" else None,
+                                 status="watching", src="entry_scout", root=self.root, now=self.clock(), ttl_h=self.WATCH_TTL_H)
+            return rec["id"]
+        except Exception:
+            return None
+
     def _execute_entry(self, role, obj, job, agent_id, meta, ctx, llm, meter, assign):
         """entry/1: skip -> запись; propose -> план tb.plan/1 (режим paper жёстко) через submit_plan шлюза. Размер/плечо считает исполнитель (guard), Gate отклонит лишнее."""
         why = validate.redact(obj["why"], 200)
         if obj["decision"] == "skip":
-            self._journal(job, role, agent_id, obj, "note", "SKIP", why, meta, llm, meter, assign)
+            iid = self._watch_idea(obj, job, ctx, why)
+            self._journal(job, role, agent_id, obj, "note", "SKIP", why + (" | идея %s" % iid if iid else ""), meta, llm, meter, assign)
             return {"outcome": "hold", "code": "SKIP"}
         blk = self._entry_block(agent_id, ctx)
         if blk:

@@ -76,6 +76,15 @@ class EntrySchema(unittest.TestCase):
         self.assertTrue(check(skip(sym="SOL"))[1])
         self.assertTrue(check(propose(skip_code="other"))[1])
 
+    def test_skip_with_watch_level(self):
+        """Пропуск может нести watch (уровень, стоп, цель) на будущее; порядок цен и дальность проверяются."""
+        w = {"side": "long", "level": 144.0, "stop": 142.8, "tp": 147.0, "setup": "level_reclaim"}
+        self.assertEqual(check(skip(watch=w)), ([], []))
+        self.assertIn("WATCH_SIDE_PRICES", check(skip(watch=dict(w, stop=145.0)))[1])
+        self.assertIn("WATCH_SIDE_PRICES", check(skip(watch=dict(w, side="short")))[1])
+        self.assertIn("WATCH_LEVEL_FAR", check(skip(watch=dict(w, level=120.0, stop=118.0, tp=130.0)))[1])
+        self.assertTrue(check(skip(watch={"side": "long", "level": 144.0}))[0])             # неполный watch схема не пускает
+
     def test_side_price_consistency(self):
         self.assertIn("SIDE_PRICES", check(propose(stop=146.0))[1])
         self.assertIn("SIDE_PRICES", check(propose(side="short"))[1])
@@ -246,6 +255,24 @@ class Scout(BrainBase):
         self.assertEqual(self.gw.tool_calls("submit_plan"), [])
         self.assertEqual(j["result"]["outcome"], "hold")
         self.assertEqual([x["res"]["code"] for x in self.decisions()], ["SKIP"])
+
+    def test_skip_with_watch_writes_idea_once(self):
+        """Пропуск с уровнем становится идеей watching (ttl 4 ч); повтор того же уровня дубль не создаёт."""
+        from tb.core import ideas
+        w = {"side": "long", "level": 144.0, "stop": 142.8, "tp": 147.0, "setup": "level_reclaim"}
+        r, j, s = self.run_job(skip(skip_code="rr_low", watch=w))
+        rows = [i for i in ideas.load_ideas(self.root) if i.get("src") == "entry_scout"]
+        self.assertEqual(len(rows), 1, rows)
+        i = rows[0]
+        self.assertEqual((i["sym"], i["side"], i["level"], i["stop"], i["tp"], i["status"], i["ttl_h"]), ("SOL", "long", 144.0, 142.8, 147.0, "watching", 4.0))
+        self.assertIn(i["id"], [x["why"] for x in self.decisions()][-1])
+        r, j, s = self.run_job(skip(skip_code="rr_low", watch=dict(w, level=144.2)), jid="J-s2")
+        self.assertEqual(len([i for i in ideas.load_ideas(self.root) if i.get("src") == "entry_scout"]), 1)
+
+    def test_skip_without_watch_writes_no_idea(self):
+        from tb.core import ideas
+        self.run_job(skip())
+        self.assertEqual([i for i in ideas.load_ideas(self.root) if i.get("src") == "entry_scout"], [])
 
     def test_not_paper_blocks_without_llm_call(self):
         for mode in ("live", "testnet", "observe"):

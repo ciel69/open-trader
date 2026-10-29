@@ -80,6 +80,9 @@ PM = {"type": "object", "required": ["schema", "event_seq", "plan", "rev", "deci
 ENTRY = {"type": "object", "required": ["schema", "event_seq", "decision", "why", "conf"], "properties": {
     "schema": {"const": "tb.entry/1"}, "event_seq": {"type": "integer", "minimum": 0}, "decision": {"enum": list(ENTRY_DECISIONS)},
     "skip_code": {"enum": list(ENTRY_SKIP_CODES)},
+    "watch": {"type": "object", "required": ["side", "level", "stop", "tp"], "properties": {
+        "side": {"enum": ["long", "short"]}, "level": {"type": "number", "minimum": 1e-12}, "stop": {"type": "number", "minimum": 1e-12},
+        "tp": {"type": "number", "minimum": 1e-12}, "setup": {"enum": list(SETUPS)}}},
     "sym": {"type": "string", "pattern": RE_SYM}, "side": {"enum": ["long", "short"]}, "horizon": {"enum": list(SESSION_ORDER)}, "level": {"type": "number", "minimum": 1e-12},
     "zone": {"type": "object", "required": ["low", "high"], "properties": {"low": {"type": "number", "minimum": 1e-12}, "high": {"type": "number", "minimum": 1e-12}}},
     "stop": {"type": "number", "minimum": 1e-12}, "tp": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "number", "minimum": 1e-12}},
@@ -452,7 +455,17 @@ def _entry(o, ctx):
         errs.append("KILL")
     if o.get("decision") == "skip":
         extra = [k for k in ENTRY_PROPOSE_KEYS + ENTRY_OPTIONAL_KEYS if k in o]
-        return (errs + ["SKIP_EXTRA:%s" % extra[0]])[:8] if extra else errs[:8]
+        if extra:
+            return (errs + ["SKIP_EXTRA:%s" % extra[0]])[:8]
+        w = o.get("watch")
+        if w is not None:                                    # пропуск с уровнем на будущее: станет идеей, на уровне агента разбудит idea_level
+            sign = 1 if w["side"] == "long" else -1
+            if not ((w["level"] - w["stop"]) * sign > 0 and (w["tp"] - w["level"]) * sign > 0):
+                errs.append("WATCH_SIDE_PRICES")
+            px = ctx.get("px")
+            if px and abs(w["level"] - px) / px * 100.0 > ENTRY_MAX_LEVEL_DIST_LOOSE_PCT:
+                errs.append("WATCH_LEVEL_FAR")
+        return errs[:8]
     for k in ENTRY_PROPOSE_KEYS:
         if k not in o:
             errs.append("ARGS_MISSING:%s" % k)
