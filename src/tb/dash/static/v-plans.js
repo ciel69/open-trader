@@ -21,26 +21,59 @@ function planTags(p) {
   if (p.src === "shadow") kids.push(chip("тень" + (p.parent ? " от " + planShort(p.parent) : ""), "", "теневая копия живого плана"));
   return kids;
 }
-function proxBar(dist) {
-  if (!isn(dist)) return null;
-  var f = Math.max(0, Math.min(1, 1 - dist / 3));        // полная шкала = «дальше 3%»
-  return el("div", { class: "prox", role: "img", "aria-label": "близость к триггеру: " + Math.round(f * 100) + "%", title: "чем полнее полоса, тем ближе цена к уровню (шкала до 3%)" },
-    el("i", { style: "width:" + (f * 100).toFixed(0) + "%", class: dist <= 0.3 ? "near" : "" }));
+// ---- карточка «в картинках»: куда нужна цена, сколько до неё, шкала стоп / вход / цели / цена сейчас, легенда в процентах от входа
+function pctOf(base, x) { return isn(base) && base && isn(x) ? Math.abs(100 * (x / base - 1)) : null; }
+function planEntryRef(p) { var t = p.trigger || {}; return isn(t.level) ? t.level : (isn(t.limit_px) ? t.limit_px : null); }
+function planLadder(p, entry, now) {
+  var pts = [["stop", p.stop], ["level", entry]];
+  (p.targets || []).forEach(function (t) { pts.push(["tp", t.price]); });
+  pts.push(["now", now]);
+  return ladderBar(pts);
 }
-function triggerBlock(p) {
+function planLegend(p, entry, entryLab) {
+  var risk = pctOf(entry, p.stop), bits = [el("span", { class: "lg lg-stop", text: "стоп " + price(p.stop) + (risk != null ? " (риск " + fx(risk, 2) + "%)" : "") })];
+  if (isn(entry)) bits.push(el("span", { class: "lg lg-level", text: entryLab + " " + price(entry) }));
+  (p.targets || []).forEach(function (t) {
+    var d = pctOf(entry, t.price);
+    bits.push(el("span", { class: "lg lg-tp", title: t.state || "", text: t.id + " " + price(t.price) + (d != null ? " (" + fx(d, 2) + "%)" : "") + (t.state === "filled" ? " ✓" : "") }));
+  });
+  if (isn(p.net_rr)) bits.push(el("span", { class: "lg", title: "прибыль/риск после издержек", text: "net RR " + fx(p.net_rr, 1) }));
+  return el("div", { class: "lad-leg small" }, bits);
+}
+function waitingBlock(p) {
   var t = p.trigger;
   if (!t || !(p.status === "armed" || p.status === "draft")) return null;
-  var parts = [];
-  if (t.seq) parts.push(el("span", { class: "chip", text: "шаг " + Math.min(t.seq.done + 1, t.seq.total) + " из " + t.seq.total }));
-  if (p.entry_state === "resting") parts.push(chip("лимит стоит на бирже", "ok"));
-  if (p.entry_state === "blocked") parts.push(chip("вход заблокирован" + (p.blocked_why ? ": " + p.blocked_why : ""), "bad"));
-  var line = el("div", { class: "pl-trig" }, el("span", { class: "muted", text: "Ближайший триггер: " }), el("span", { text: t.text || "–" }));
+  var lvl = planEntryRef(p), d = isn(t.dist_pct) ? t.dist_pct : null, px = isn(t.price) ? t.price : p.price;
+  var dir = isn(px) && isn(lvl) ? (px > lvl ? "↓ " : px < lvl ? "↑ " : "") : "";
+  var cap = d == null ? "расстояние неизвестно" : d <= 0.3 ? "цена у уровня" : dir === "↓ " ? "цена выше уровня, ждём снижения" : dir === "↑ " ? "цена ниже уровня, ждём роста" : "до условия входа";
   var meta = [];
-  if (isn(t.dist_pct)) meta.push(el("span", { text: "до уровня " + pc(t.dist_pct, 2) + (isn(t.level) ? " (" + price(t.level) + ")" : "") }));
-  if (isn(t.price)) meta.push(el("span", { class: "muted", text: "цена " + price(t.price) + (p.price_stale ? " (устарела)" : "") }));
   if (isn(t.eta_s)) meta.push(el("span", null, "свеча " + t.eta_tf + " закроется через ", tk("eta:" + p.id, t.eta_s, "left")));
-  if (t.missing && t.missing.length > 1) meta.push(el("span", { class: "muted", title: t.missing.join("; "), text: "не хватает: " + t.missing.length }));
-  return el("div", { class: "pl-trigbox" }, line, el("div", { class: "pl-meta small" }, meta), proxBar(t.dist_pct), parts.length ? el("div", { class: "chips tight" }, parts) : null);
+  if (t.missing && t.missing.length > 1) meta.push(el("span", { class: "muted", title: t.missing.join("; "), text: "не хватает условий: " + t.missing.length }));
+  if (p.price_stale) meta.push(el("span", { class: "muted", text: "цена устарела" }));
+  var chips = [];
+  if (t.seq) chips.push(el("span", { class: "chip", text: "шаг " + Math.min(t.seq.done + 1, t.seq.total) + " из " + t.seq.total }));
+  if (p.entry_state === "resting") chips.push(chip("лимит стоит на бирже", "ok"));
+  if (p.entry_state === "blocked") chips.push(chip("вход заблокирован" + (p.blocked_why ? ": " + p.blocked_why : ""), "bad"));
+  return el("div", { class: "pl-viz" },
+    el("div", { class: "ic-main" },
+      el("div", null, el("div", { class: "ic-lab", text: "Вход у" }), el("div", { class: "ic-lvl", text: isn(lvl) ? price(lvl) : "по условию" }),
+        el("div", { class: "muted small", text: isn(px) ? "сейчас " + price(px) : "цены нет" })),
+      el("div", { class: d != null && d <= 0.3 ? "ic-dist near" : "ic-dist" }, el("div", { class: "ic-lab", text: "До триггера" }),
+        el("div", { class: "ic-big", text: d == null ? "–" : (d <= 0.3 ? "" : dir) + pc(d, 2) }), el("div", { class: "muted small", text: cap }))),
+    planLadder(p, lvl, px), planLegend(p, lvl, "вход"),
+    meta.length ? el("div", { class: "pl-meta small" }, meta) : null, chips.length ? el("div", { class: "chips tight" }, chips) : null);
+}
+function tradeBlock(p) {
+  var v = V2(), pos = v && v.positions.filter(function (x) { return x.plan === p.id; })[0];
+  if (!pos) return el("div", { class: "pl-trig muted small", text: "позиция сопровождается правилами" });
+  return el("div", { class: "pl-viz" },
+    el("div", { class: "ic-main" },
+      el("div", null, el("div", { class: "ic-lab", text: "Результат сейчас" }), el("div", { class: "ic-big " + cls(pos.r_now), text: rr(pos.r_now) }),
+        el("div", { class: "small " + cls(pos.upnl), text: isn(pos.upnl) ? sg(pos.upnl, 3) + " USDT" : "" })),
+      el("div", null, el("div", { class: "ic-lab", text: "Стоп сейчас" }), el("div", { class: "ic-lvl", text: price(pos.cur_stop) }),
+        el("div", { class: "muted small", text: pos.stop_src ? "на: " + pos.stop_src : "" }), pos.next_stop ? el("div", { class: "small", text: "→ " + price(pos.next_stop.to) }) : null)),
+    ladderBar([["stop", pos.cur_stop], ["level", pos.avg]].concat((pos.targets || []).map(function (t) { return ["tp", t.price]; }), [["now", pos.price]])),
+    planLegend(Object.assign({}, p, { stop: pos.cur_stop }), pos.avg, "вход"), el("div", { class: "pl-links" }, tabLink("правила и лесенка", "overview", {}, "small")));
 }
 function planFoot(p) {
   var bits = [];
@@ -58,12 +91,6 @@ function closedLine(p) {
   if (p.status === "closed" && isn(p.close_pnl)) bits.push(el("b", { class: "small " + cls(p.close_pnl), text: sg(p.close_pnl, 3) + " USDT" }));
   if (isn(p.ts_closed)) bits.push(el("span", { class: "muted small", text: dt(p.ts_closed) }));
   return el("div", { class: "pl-closed" }, bits);
-}
-function inTradeLine(p) {
-  var v = V2(), pos = v && v.positions.filter(function (x) { return x.plan === p.id; })[0];
-  if (!pos) return el("div", { class: "pl-trig muted small", text: "позиция сопровождается правилами" });
-  return el("div", { class: "pl-closed" }, el("b", { class: cls(pos.r_now), text: rr(pos.r_now) }), el("span", { class: "small muted", text: "стоп " + price(pos.cur_stop) + " (" + pos.stop_src + ")" }),
-    pos.next_stop ? el("span", { class: "small", text: "→ " + price(pos.next_stop.to) }) : null, tabLink("правила и лесенка", "overview", {}, "small"));
 }
 function kvList(obj) {
   return Object.keys(obj || {}).map(function (k) { return k + "=" + (obj[k] === null ? "–" : obj[k]); }).join(" · ");
@@ -121,7 +148,7 @@ function planCard(p) {
   var body = [head, tags.length ? el("div", { class: "chips tight" }, tags) : null,
     p.thesis ? el("div", { class: "pl-thesis clamp", title: p.thesis, text: p.thesis }) : null,
     el("div", { class: "pl-entry small" }, el("span", { class: "muted", text: "Вход: " }), el("span", { text: p.entry_text })),
-    p.col === "closed" ? closedLine(p) : p.col === "in_trade" ? inTradeLine(p) : triggerBlock(p), planFoot(p)];
+    p.col === "closed" ? closedLine(p) : p.col === "in_trade" ? tradeBlock(p) : waitingBlock(p), planFoot(p)];
   var btn = el("button", { type: "button", class: "pc-toggle", "aria-expanded": "false" }, el("span", { class: "cv", "aria-hidden": "true" }), "Подробнее");
   var det = el("div", { class: "pl-det", hidden: true });
   var card = el("article", { class: "plan col-" + p.col + " st-" + p.status + (p.mode === "paper" ? " is-paper" : ""), "aria-label": "План " + p.id }, body, btn, det);

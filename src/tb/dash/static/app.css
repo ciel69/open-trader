@@ -859,6 +859,10 @@ body.st-lock { overflow: hidden; }
 .lg::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; background: var(--muted); }
 .lg-stop::before { background: var(--neg); } .lg-tp::before { background: var(--pos); } .lg-level::before { background: var(--accent); }
 .ic-note { margin: 0; font-size: 13px; color: var(--text); }
+.pl-viz { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.plan .ic-main { gap: 8px; } .plan .ic-lvl, .plan .ic-big { font-size: 17px; } .plan .ic-lab { font-size: 10.5px; }
+.plan .lad-bar { margin: 4px 6px 0; }
+.ic-big.pos { color: var(--pos); } .ic-big.neg { color: var(--neg); }
 .st-line { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 .st-line .st-fl { flex: none; }
 .st-modal .st-line input[type=text] { width: 84px; flex: none; text-align: right; padding: 6px 10px; border-radius: 8px; }

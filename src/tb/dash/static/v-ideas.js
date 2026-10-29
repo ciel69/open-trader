@@ -57,15 +57,7 @@ function levelPhrase(i) {
   if (i.zone) return { big: spc(d, 2), cap: "цена у уровня (в пределах 0.3%)", cls: "near" };
   return { big: (d > 0 ? "↓ " : "↑ ") + pc(Math.abs(d), 2), cap: d > 0 ? "цена выше уровня, ждём снижения" : "цена ниже уровня, ждём роста", cls: Math.abs(d) < 1 ? "close" : "" };
 }
-function ladder(i) {
-  var pts = [["stop", i.stop], ["level", i.level], ["tp", i.tp], ["now", i.now_price]].filter(function (p) { return isn(p[1]) && p[1] > 0; });
-  if (pts.length < 2) return null;
-  var lo = Math.min.apply(null, pts.map(function (p) { return p[1]; })), hi = Math.max.apply(null, pts.map(function (p) { return p[1]; })), pad = (hi - lo) * 0.08 || hi * 0.01;
-  lo -= pad; hi += pad;
-  var bar = el("div", { class: "lad-bar", role: "img", "aria-label": "Шкала цен: стоп, уровень, тейк и текущая цена" });
-  pts.forEach(function (p) { bar.appendChild(el("span", { class: "lad-mk lad-" + p[0], style: "left:" + (100 * (p[1] - lo) / (hi - lo)).toFixed(2) + "%" })); });
-  return bar;
-}
+function ladder(i) { return ladderBar([["stop", i.stop], ["level", i.level], ["tp", i.tp], ["now", i.now_price]]); }
 function ideaCard(i, now) {
   var ph = levelPhrase(i), left = isn(i.expires_epoch) ? i.expires_epoch - now : null;
   var risk = isn(i.level) && isn(i.stop) ? Math.abs(pctFrom(i.level, i.stop)) : null, rew = isn(i.level) && isn(i.tp) ? Math.abs(pctFrom(i.level, i.tp)) : null;

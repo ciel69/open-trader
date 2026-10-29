@@ -276,6 +276,16 @@ function kvgrid(pairs) {
     return [el("dt", null, p[0]), el("dd", { class: p[2] || "" }, p[1])];
   }));
 }
+// Шкала цен: pts = [[класс, цена], ...], класс: stop | level (вход/уровень) | tp | now; меньше двух точек -> null. Общая для идей и планов.
+function ladderBar(pts) {
+  pts = pts.filter(function (p) { return isn(p[1]) && p[1] > 0; });
+  if (pts.length < 2) return null;
+  var vals = pts.map(function (p) { return p[1]; }), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.08 || hi * 0.01;
+  lo -= pad; hi += pad;
+  var bar = el("div", { class: "lad-bar", role: "img", "aria-label": "Шкала цен: стоп, вход, цели и текущая цена" });
+  pts.forEach(function (p) { bar.appendChild(el("span", { class: "lad-mk lad-" + p[0], style: "left:" + (100 * (p[1] - lo) / (hi - lo)).toFixed(2) + "%" })); });
+  return bar;
+}
 function chip(text, kind, title) { return el("span", { class: "chip" + (kind ? " " + kind : ""), text: text, title: title || null }); }
 function emptyState(node, title, hint) {
   node.hidden = false; node.replaceChildren();
