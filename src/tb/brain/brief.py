@@ -304,6 +304,16 @@ def _b_pause(c, syms):
     return _drop_none({"syms": left or None, "all": allp, "streak": streak if streak else None, "min_size": small or None})
 
 
+def _b_flash(c, sym):
+    """Быстрые новости по монете события за последние 30 минут (intel/flash.py): только класс, подсказка направления, важность, возраст и изменение цены с момента новости.
+    Текста заголовка здесь нет: это данные, не инструкции. Нет новостей -> None."""
+    if not sym or not getattr(c, "root", None):
+        return None
+    from tb.core import newsflash
+    rows = newsflash.recent_for(c.root, sym, c.now)
+    return rows or None
+
+
 def _b_paper_history(c):
     closed = [t for t in c.trades if t.get("mode") == "paper" and t.get("status") == "closed"]
     days = set(str(t.get("ts_close") or "")[:10] for t in closed)
@@ -1210,8 +1220,9 @@ def build(scope="start", since=None, budget_tokens=None, root=None, now=None, co
             have = {x.get("id") for x in b["plans"]}
             b["plans"] += [x for x in plans if x.get("sym") in syms and x.get("id") not in have][:3]
         b["pause"] = _safe("pause", lambda: _b_pause(c, syms), missing) if syms else None
-        sig = next((e for e in reversed(b["recent"] or []) if e.get("type") == "scanner_signal" and job_sym and e.get("sym") == job_sym), None)
-        sd = (sig or {}).get("d") if isinstance((sig or {}).get("d"), dict) else {}
+        b["flash"] = _safe("flash", lambda: _b_flash(c, job_sym), missing) if job_sym else None
+        sig = next((e for e in reversed(b["recent"] or []) if e.get("type") in ("scanner_signal", "news_flash") and job_sym and e.get("sym") == job_sym), None)
+        sd =(sig or {}).get("d") if isinstance((sig or {}).get("d"), dict) else {}
         sfeats = {k: float(sd[k]) for k in ("range_5m_pct", "ret_5m_pct") if isinstance(sd.get(k), (int, float)) and not isinstance(sd.get(k), bool)}
         b["memory"] = _safe("memory", lambda: memory_block(c, "event", b["plans"], involved, consumer, job_sym if sig is not None else None, sfeats), missing)
         wanted = prio[:2] + [x["sym"] for x in b["positions"]] + [x["sym"] for x in b["plans"]] + prio

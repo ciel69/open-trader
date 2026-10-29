@@ -106,7 +106,7 @@ DEFAULTS = {
             "connectivity": 0, "kill": 0, "limit_hit": 0, "error": 0, "reconcile_alert": 0, "service_down": 0, "exec_down": 0, "exec_stopped": 0,
             "exec_started": 1, "plan_armed": 1, "plan_rejected": 1, "trigger_fired": 1, "entry_blocked": 1, "entry_filled": 1, "position_closed": 1,
             "plan_ended": 1, "action_rejected": 1, "stop_moved": 1, "rule_fired": 1, "session_ending": 1, "brain_wake_request": 1,
-            "milestone": 2, "macro_blackout_soon": 1, "scanner_signal": 3,
+            "milestone": 2, "macro_blackout_soon": 1, "news_flash": 2, "scanner_signal": 3,
         },
     },
     "links": {"dash": "http://127.0.0.1:{dash_port}/"},

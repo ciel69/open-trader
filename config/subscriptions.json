@@ -28,6 +28,7 @@
           "entry_filled",
           "macro_blackout_soon",
           "milestone",
+          "news_flash",
           "position_closed",
           "reconcile_alert",
           "risk_level_changed",
@@ -70,7 +71,8 @@
           "risk_level_changed"
         ],
         "entry_scout": [
-          "scanner_signal"
+          "scanner_signal",
+          "news_flash"
         ]
       }
     },

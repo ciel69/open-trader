@@ -436,7 +436,7 @@ class RoleFiles(unittest.TestCase):
         r = reg.get("entry_scout")
         self.assertFalse(r.live_risk)
         self.assertEqual(r.output_schema, "entry/1")
-        self.assertEqual(r.wake_on, ["scanner_signal"])
+        self.assertEqual(r.wake_on, ["scanner_signal", "news_flash"])
         self.assertEqual(r.wake_kinds, ["hot_enter", "range_5m", "turnover_surge", "patrol", "idea_level"])
         self.assertEqual(r.scope, "team")
         self.assertEqual([k for k in r.wake_kinds if k.startswith("idea_")], ["idea_level"])      # цена у уровня идеи (план дня) будит роль; idea_near/invalidated/tp нет

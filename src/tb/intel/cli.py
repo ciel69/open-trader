@@ -5,6 +5,7 @@ fetch     ОДИН цикл загрузки прямо сейчас (живые
 show      facts.json | blackouts | items (заголовки показываются только в интерактивном терминале владельца, не в канале агента);
 sources   реестр источников (без сети);
 calendar  события на 30 дней с пометкой verified (v:false = кандидат, ПРОВЕРИТЬ ПО ОФИЦИАЛЬНОМУ КАЛЕНДАРЮ), окна blackout; `calendar import` = fetch cal_*;
+flash     быстрые новости: последние news_flash и статистика исходов по классам (без заголовков);
 verify    проверка живых источников (tb.intel.verify).
 """
 import argparse
@@ -127,6 +128,25 @@ def cmd_calendar(argv, out):
     return 0
 
 
+def cmd_flash(out):
+    """Быстрые новости: последние события (класс, подсказка направления, важность, монета, изменение цены) и статистика исходов по классам. Заголовков нет."""
+    from tb.core import newsflash
+    root, now = paths.root(), time.time()
+    rows = [r for r in newsflash.read_rows(root) if r.get("ev") == "flash"][-15:]
+    print("Последние новости (news_flash), всего в реестре: %d" % len([r for r in newsflash.read_rows(root) if r.get("ev") == "flash"]), file=out)
+    print("%-17s %-11s %-5s %4s %-8s %-12s %s" % ("время UTC", "класс", "напр.", "важн", "монета", "источник", "возраст новости"), file=out)
+    for r in rows:
+        print("%-17s %-11s %-5s %4s %-8s %-12s %ss" % (_fmt_ts(r.get("ts")), r.get("cls"), r.get("dir"), r.get("imp"), r.get("sym"), r.get("src"), r.get("age_s")), file=out)
+    st = newsflash.stats(root)
+    print("\nИсходы по классам (ret = изменение цены после новости, dir = по подсказке направления; n < 30 это не вывод):", file=out)
+    print("%-11s %5s %5s %10s %10s %6s" % ("класс", "мин", "n", "ret_%", "dir_%", "верно"), file=out)
+    for s in st:
+        print("%-11s %5s %5d %10s %10s %6s" % (s["cls"], s["h"], s["n"], s["mean_ret_pct"], s["mean_dir_pct"], s["hit"]), file=out)
+    if not st:
+        print("(исходов пока нет: они пишутся через 1, 5 и 15 минут после новости)", file=out)
+    return 0
+
+
 def main(argv=None, out=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     out = out or sys.stdout
@@ -145,10 +165,12 @@ def main(argv=None, out=None):
             return cmd_sources(out)
         if cmd == "calendar":
             return cmd_calendar(rest, out)
+        if cmd == "flash":
+            return cmd_flash(out)
         if cmd == "verify":
             from tb.intel import verify
             return verify.main(rest, out=out)
     except SystemExit as e:
         return int(e.code or 0) if isinstance(e.code, int) else 2
-    print("intel: неизвестная команда %s (status|fetch|show|sources|calendar|verify)" % cmd, file=sys.stderr)
+    print("intel: неизвестная команда %s (status|fetch|show|sources|calendar|flash|verify)" % cmd, file=sys.stderr)
     return 2

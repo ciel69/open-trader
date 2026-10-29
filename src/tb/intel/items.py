@@ -247,6 +247,7 @@ class ItemStore(object):
         self._index(now)
         res = {"new": 0, "dup": 0, "confirmed": 0}
         fresh, confirm = [], {}
+        self.last_fresh = fresh                              # новые элементы последнего вызова (для быстрого канала news_flash)
         for it in items:
             dom = domain_of(it.get("url", "")) or it.get("src", "")
             e = self._find(it, trigrams(it["title"]))

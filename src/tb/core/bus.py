@@ -57,6 +57,7 @@ EVENT_TYPES = {
     "day_report": PRI_WAKE,            # WP14: отчёт дня (старт / итог / аварийный): kind, net, carried_n, questions_n, verdict
     "brain_swap": PRI_INFO,            # WP11-C2/интеграция: смена модели/команды мозга или запасной профиль: kind, from, to, rev, by
     "day_state": PRI_INFO,             # WP14: переход состояния дня (stopped/starting/running/closing/halted)
+    "news_flash": PRI_WAKE,            # быстрые новости (intel/flash.py): класс, подсказка направления, важность, источник; БЕЗ текста заголовка
 }
 WAKE_MILESTONES = ("r_plus_1", "r_minus_05", "near_target", "target_filled")
 SCANNER_KINDS = ("range_5m", "turnover_surge", "hot_enter", "patrol", "idea_near", "idea_level", "idea_invalidated", "idea_tp", "idea_expired")
@@ -66,6 +67,7 @@ RECONCILE_KINDS = ("orphan_position", "position_drift", "missing_stop", "unknown
 ENTRY_BLOCKED_WHY = ("GUARD", "CHASE", "COOLDOWN", "STALE", "SPREAD", "MIN_SIZE")
 CONNECTIVITY_CHANNELS = ("public", "private", "rest")
 MACRO_KINDS = ("FOMC", "CPI", "NFP", "PCE", "GDP", "OTHER")
+FLASH_CLASSES = ("hack", "delisting", "listing", "etf", "regulation", "unlock", "maintenance", "macro")
 EVENT_KEYS = ("seq", "ts", "type", "pri", "plan", "sym", "d")   # plan и sym необязательны
 MAX_EVENT_BYTES = 400
 RE_D_IDENT = r"^[A-Za-z0-9_.-]{1,40}$"
@@ -130,6 +132,7 @@ D_FIELDS = {
     "day_report": {"kind": ("enum", ("start", "stop", "emergency")), "day": "id", "net": "num", "carried_n": "num", "questions_n": "num",
                    "verdict": ("enum", ("ok", "attention", "alarm"))},
     "day_state": {"state": ("enum", ("stopped", "starting", "running", "closing", "halted")), "step": "id", "code": "id"},
+    "news_flash": {"cls": ("enum", FLASH_CLASSES), "dir": ("enum", ("up", "down", "none")), "imp": "num", "src": "id", "age_s": "num", "id": "id"},
 }
 
 

@@ -19,6 +19,7 @@ from tb import paths
 from tb.core import filelock
 from tb.intel import calendar as ical
 from tb.intel import fetch as ifetch
+from tb.intel import flash as iflash
 from tb.intel import items as iitems
 from tb.intel import reader as ireader
 from tb.intel import sources as src_mod
@@ -46,6 +47,7 @@ class Service(object):
         self._events = []
         self.reader = ireader.Reader(root, self.cfg, call=reader_call, clock=clock, log=self.log) if ireader.reader_cfg(self.cfg)["enabled"] else None
         self._reader_thread = None
+        self.flash = iflash.Flash(root, self.cfg, clock, self._emit_flash, self.log)         # быстрый канал: правила по заголовкам без LLM -> news_flash
 
     # ---- карантинный читатель (WP13b): LLM-вызов не должен задерживать загрузку источников, поэтому отдельный поток, один за раз
     def reader_step(self, now):
@@ -70,9 +72,12 @@ class Service(object):
             self._pool.shutdown(wait=False)
 
     # ---- шина ----
-    def _emit_bus(self, type_, d, now):
+    def _emit_bus(self, type_, d, now, sym=None):
         from tb.core import bus
-        return bus.emit(type_, d, root=self.root, now=now)
+        return bus.emit(type_, d, sym=sym, root=self.root, now=now)
+
+    def _emit_flash(self, type_, d, now, sym):
+        return self.emit(type_, d, now, sym) if self.emit is self._emit_bus else self.emit(type_, d, now)
 
     # ---- источники ----
     def refresh_symbols(self, now, force=False):
@@ -134,6 +139,11 @@ class Service(object):
             return
         self.stats["items_new"] += res["new"]
         self.stats["items_dup"] += res["dup"]
+        if res["new"]:
+            try:
+                self.stats["flashes"] = self.stats.get("flashes", 0) + len(self.flash.process(list(getattr(self.items, "last_fresh", [])), now))
+            except Exception as e:  # noqa: BLE001 - быстрый канал не должен ронять загрузку источников
+                self.log("intel: сбой быстрого канала (%s)" % type(e).__name__)
 
     # ---- календарь ----
     def calendar_step(self, now, force=False):
@@ -208,6 +218,10 @@ class Service(object):
             self.reader_step(now)
         except Exception as e:  # noqa: BLE001
             self.log("intel: сбой читателя (%s)" % type(e).__name__)
+        try:
+            self.flash.track(now)                         # исходы новостей через 1/5/15 минут
+        except Exception as e:  # noqa: BLE001
+            self.log("intel: сбой учёта исходов новостей (%s)" % type(e).__name__)
         if now - self._t["prune"] >= 3600:
             self._t["prune"] = now
             try:

@@ -320,15 +320,14 @@ class TestScheduling(SvcCase):
         self.svc.tick(NOW + 2.5)
         self.assertEqual(self.net.count("api.bybit.com"), 2)
 
-    def test_request_budget_under_300_per_hour(self):
+    def test_request_budget_under_500_per_hour(self):
+        """Быстрый канал новостей (анонсы раз в 30 с, RSS раз в 90-180 с) поднял потолок: общий бюджет в час до 600, фактически меньше 500."""
         self.mk(min_gap_s=0.0)
-        t = NOW
-        total = 0
         for step in range(0, 3600, 5):
             self.svc.tick(NOW + step)
         total = len(self.net.calls)
-        self.assertLess(total, 300)
-        self.assertLessEqual(self.svc.fetcher.requests_last_hour(NOW + 3599), 280)
+        self.assertLess(total, 500)
+        self.assertLessEqual(self.svc.fetcher.requests_last_hour(NOW + 3599), 600)
 
     def test_symbols_from_watch_and_hot(self):
         self.write("config/watch_config.json", json.dumps({"symbols": ["XRP"]}))
