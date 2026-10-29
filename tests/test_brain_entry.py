@@ -85,6 +85,17 @@ class EntrySchema(unittest.TestCase):
         self.assertIn("RR_LOW", check(propose(tp=[145.5]))[1])
         self.assertNotIn("RR_LOW", check(propose(tp=[149.0]))[1])
 
+    def test_rejection_hints_carry_numbers_for_the_retry(self):
+        """Подсказка повтора содержит наши числа (сколько есть и сколько нужно): модель видит, что исправить, а не только код."""
+        sem = check(propose(tp=[145.5]))[1]
+        self.assertIn("RR_LOW", sem)
+        self.assertTrue(any(x.startswith("RR_GROSS:") and "_NEED:2.00" in x for x in sem), sem)
+        sem = check(propose(stop=144.9, tp=[146.0]))[1]
+        self.assertTrue(any(x.startswith("STOP_PCT:") and "_MIN:" in x for x in sem), sem)
+        far = copy.deepcopy(SCAN_BRIEF)
+        o = propose(side="short", level=151.0, stop=152.6, tp=[148.0, 146.0])
+        self.assertTrue(any(x.startswith("LEVEL_DIST_PCT:") and "_MAX:3.0" in x for x in check(o, far)[1]))
+
     def test_stop_too_tight_or_range_wider(self):
         self.assertIn("STOP_TIGHT", check(propose(stop=144.9, tp=[146.0]))[1])
         b = copy.deepcopy(SCAN_BRIEF)

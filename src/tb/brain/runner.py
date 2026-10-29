@@ -374,7 +374,8 @@ class Runner(object):
 
     def _no_action(self, role, job, agent_id, meta, llm, meter, assign):
         self.event("error", {"where": "brain", "code": llm["code"] if llm["code"] == "BAD_FORMAT" else "NO_ACTION"})
-        self._journal(job, role, agent_id, None, "skip", llm["code"], "нет действия: %s" % llm["code"], meta, llm, meter, assign)
+        det = "; ".join(str(x) for x in (llm.get("errors") or [])[:4])[:90]          # последние коды отказа проверки (RR_LOW, STOP_TIGHT, ...): почему ответ не принят
+        self._journal(job, role, agent_id, None, "skip", llm["code"], "нет действия: %s%s" % (llm["code"], " (%s)" % det if det else ""), meta, llm, meter, assign)
 
     # ---- вход роли
     def _input(self, role, job, agent_id, meta):

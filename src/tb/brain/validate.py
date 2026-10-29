@@ -483,8 +483,10 @@ def _entry(o, ctx):
             errs.append("STOP_WRONG_SIDE")                   # цена уже за стопом
         if (tps[0] - px) * sign <= 0:
             errs.append("TP_REACHED")
-        if abs(lvl - px) / px * 100.0 > (ENTRY_MAX_LEVEL_DIST_LOOSE_PCT if _loose(ctx) else ENTRY_MAX_LEVEL_DIST_PCT):
-            errs.append("LEVEL_FAR")
+        lvl_max = ENTRY_MAX_LEVEL_DIST_LOOSE_PCT if _loose(ctx) else ENTRY_MAX_LEVEL_DIST_PCT
+        lvl_dist = abs(lvl - px) / px * 100.0
+        if lvl_dist > lvl_max:
+            errs += ["LEVEL_FAR", "LEVEL_DIST_PCT:%.1f_MAX:%.1f" % (lvl_dist, lvl_max)]      # числа в подсказке повтора: модель видит, что исправлять (только наши числа, не цитата ответа)
     rr = _entry_rr(side, lvl, px, stop, tps)
     dist = abs(lvl - stop) / lvl * 100.0
     min_rr, max_stop, cost = ctx.get("min_rr"), ctx.get("max_stop_pct"), ctx.get("cost_rt_pct")
@@ -503,15 +505,17 @@ def _entry(o, ctx):
         errs.append("RR_LOW")
     elif min_rr is not None and cost is not None:
         # как guard: RR после издержек круга, выигрыш уменьшается на cost, проигрыш растёт на cost (в % от уровня); порог = min_rr типа сессии
-        if (rr * dist - cost) / (dist + cost) < min_rr - 1e-9:
-            errs.append("RR_LOW")
+        net = (rr * dist - cost) / (dist + cost)
+        if net < min_rr - 1e-9:
+            errs += ["RR_LOW", "RR_NET:%.2f_NEED:%.2f" % (net, min_rr)]
     elif rr < ENTRY_MIN_RR - 1e-9:
-        errs.append("RR_LOW")
+        errs += ["RR_LOW", "RR_GROSS:%.2f_NEED:%.2f" % (rr, ENTRY_MIN_RR)]
     floor = max(ENTRY_MIN_STOP_PCT, ctx.get("a5_pct") or 0.0, 3.0 * (ctx.get("spread_bps") or 0.0) / 100.0)
     if dist < floor:
-        errs.append("STOP_TIGHT")                            # стоп не вплотную: не ближе ATR(5м), трёх спредов и 0.1%
-    if dist > (max_stop if max_stop is not None else ENTRY_MAX_STOP_PCT) + 1e-9:
-        errs.append("STOP_WIDE")                             # шире допустимого для типа сессии (guard отклонит так же): пропускают, а не сжимают
+        errs += ["STOP_TIGHT", "STOP_PCT:%.2f_MIN:%.2f" % (dist, floor)]      # стоп не вплотную: не ближе ATR(5м), трёх спредов и 0.1%
+    stop_max = max_stop if max_stop is not None else ENTRY_MAX_STOP_PCT
+    if dist > stop_max + 1e-9:
+        errs += ["STOP_WIDE", "STOP_PCT:%.2f_MAX:%.2f" % (dist, stop_max)]     # шире допустимого для типа сессии (guard отклонит так же): пропускают, а не сжимают
     if ctx.get("day_max_new_plans") == 0:
         errs.append("DAY_NO_PLANS")                          # план дня: новых планов нет
     if ctx.get("day_setups") and o.get("setup") not in ctx["day_setups"]:
