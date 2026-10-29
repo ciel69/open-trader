@@ -341,6 +341,8 @@ class Runner(object):
             out.update(outcome="no_action", code="DOSSIER")
             self._journal(job, role, agent_id, None, "skip", "DOSSIER", str(e)[:100], meta, None, meter, assign)
             return out
+        if role.output_schema == "entry/1" and ctx.get("struct_missing") and int(job.get("attempts") or 1) < int(self.conf.runtime.get("max_attempts") or 3):
+            raise Deferred("STRUCT", 45.0)                   # структуры по монете события ещё нет (свечи подтягиваются): ждём, а не пропускаем; последняя попытка идёт к модели
         if role.output_schema == "entry/1":                  # детерминированные отказы по данным досье ДО вызова модели: токены не тратятся
             pre = validate.entry_precheck(ctx)
             if pre:

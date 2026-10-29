@@ -65,15 +65,15 @@ class PatrolTest(unittest.TestCase):
         self.assertEqual(self.step(), 0)                                               # 301 с < 2 x 300
         self.assertEqual(self.step(300.0), 1)
 
-    def test_only_paper_running_with_trading_on(self):
+    def test_only_paper_running_not_observe(self):
         self.ctl("platform.json", {"state": "running", "mode": "live", "trading": True})
         self.assertEqual(self.step(), 0)
         self.ctl("platform.json", {"state": "stopped", "mode": "paper"})
         self.assertEqual(self.step(), 0)
-        self.ctl("platform.json", {"state": "running", "mode": "paper"})
-        self.ctl("trading.json", {"enabled": False})
+        self.ctl("platform.json", {"state": "running", "mode": "paper", "trading": False})       # observe: торговля выключена
         self.assertEqual(self.step(), 0)
-        self.ctl("trading.json", {"enabled": True})
+        self.ctl("platform.json", {"state": "running", "mode": "paper", "trading": True})
+        self.ctl("trading.json", {"enabled": False})                                             # флаг шлюза для paper не нужен: обход идёт
         self.assertEqual(self.step(), 1)
 
     def test_day_symbols_avoid_and_hot_coins(self):

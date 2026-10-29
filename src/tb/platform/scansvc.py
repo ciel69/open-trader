@@ -226,7 +226,7 @@ class Patrol(object):
     """Плановый обход рынка. Без него агент реагирует только на события сканера и идей и в тишине просто «ждёт». На высоких уровнях риска
     (`min_level`, по умолчанию 4) сканер сам, без всплеска, будит entry_scout по очереди на каждую монету дня: day.symbols (иначе BTC/ETH/SOL)
     плюс до `hot_n` горячих; монеты из day.avoid пропускаются. Период `every_s` на уровне 5, вдвое реже на уровне 4.
-    Идёт только пока день работает в paper с включённой торговлей: entry_scout в live не работает по замыслу. Событие несёт только kind и wake."""
+    Идёт только пока день работает в paper (не observe): entry_scout в live не работает по замыслу. Событие несёт только kind и wake."""
 
     def __init__(self, root, pcfg, publisher, clock=time.time, level_fn=None):
         self.root, self.cfg, self.pub, self.clock = root, pcfg or {}, publisher, clock
@@ -246,8 +246,8 @@ class Patrol(object):
         lvl = self.level_fn(self.root)
         if lvl < int(self.cfg.get("min_level", 4)):
             return None
-        plat, trade = self._read("platform.json"), self._read("trading.json")
-        if plat.get("state") != "running" or plat.get("mode") != "paper" or trade.get("enabled") is not True:
+        plat = self._read("platform.json")            # trading.json не смотрим: для paper флаг не нужен (шлюз пропускает paper всегда)
+        if plat.get("state") != "running" or plat.get("mode") != "paper" or plat.get("trading") is False:
             return None
         return lvl
 

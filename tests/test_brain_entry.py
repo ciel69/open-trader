@@ -91,6 +91,37 @@ class EntrySchema(unittest.TestCase):
         b["recent"][0]["d"]["range_5m_pct"] = 2.0
         self.assertIn("RANGE5_GT_STOP", check(propose(), b)[1])
 
+    def test_loose_rules_at_risk_levels_4_5(self):
+        """Уровни 4-5 (paper-разведка): широкая свеча события не закрывает вход с подтверждением свечой, уровень допустим до 5%; на уровне 3 прежние правила."""
+        wide = copy.deepcopy(SCAN_BRIEF)
+        wide["recent"][0]["d"]["range_5m_pct"] = 2.0
+        wide["risk_level"]["level"] = 4
+        self.assertNotIn("RANGE5_GT_STOP", check(propose(), wide)[1])                         # confirm candle: ждёт новую свечу
+        self.assertIn("RANGE5_GT_STOP", check(propose(confirm="none", size_mult=0.4, tags=["no-confirm"], zone={"low": 144.9, "high": 145.1}), wide)[1])
+        self.assertIn("STOP_WIDE", check(propose(stop=100.0), wide)[1])                       # потолок стопа остаётся
+        wide["risk_level"]["level"] = 3
+        self.assertIn("RANGE5_GT_STOP", check(propose(), wide)[1])
+        far = copy.deepcopy(SCAN_BRIEF)                                                       # уровень в 4% от цены 145.2: 139.4
+        far["risk_level"]["level"] = 3
+        o = propose(side="short", level=151.0, stop=152.6, tp=[148.0, 146.0])
+        self.assertIn("LEVEL_FAR", check(o, far)[1])
+        far["risk_level"]["level"] = 5
+        self.assertNotIn("LEVEL_FAR", check(o, far)[1])
+
+    def test_precheck_wide_range_off_at_levels_4_5(self):
+        ctx = validate.entry_context(with_brief(session={"id": "S-1", "type": "scalp", "max_stop_pct": 0.8, "min_rr": 1.0, "cost_rt_pct": 0.28}), EV)
+        ctx["range_5m_pct"], ctx["risk_level"] = 1.5, 3
+        self.assertEqual(validate.entry_precheck(ctx), "WIDE_RANGE")
+        ctx["risk_level"] = 4
+        self.assertIsNone(validate.entry_precheck(ctx))
+
+    def test_struct_missing_flag(self):
+        b = with_brief(struct_missing=["SOL"], levels={})
+        self.assertTrue(validate.entry_context(b, EV)["struct_missing"])
+        self.assertFalse(validate.entry_context(SCAN_BRIEF, EV)["struct_missing"])
+        b2 = with_brief(struct_missing=["SOL"])                                              # есть записи в levels: структура не нужна
+        self.assertFalse(validate.entry_context(b2, EV)["struct_missing"])
+
     def test_blackout_block_and_warn(self):
         self.assertIn("BLACKOUT", check(propose(), with_brief(market={"blackout": {"event": "x", "in_min": 20, "mode": "block"}}))[1])
         self.assertIn("BLACKOUT", check(propose(), with_brief(market={"blackout": {"event": "x", "in_min": 20}}))[1])          # поля mode нет = block
@@ -182,6 +213,18 @@ class Scout(BrainBase):
         self.assertNotIn("leverage", json.dumps(plan))
         d = [x for x in self.decisions() if x["what"] == "brain_decision"]
         self.assertEqual(d[-1]["res"]["code"], "OK")
+
+    def test_struct_missing_defers_instead_of_skipping(self):
+        """Структуры по монете события ещё нет: задание откладывается (модель не зовём), а не получает skip no_levels; на последней попытке идёт к модели."""
+        self.gw.brief = with_brief(struct_missing=["SOL"], levels={})
+        r = self.runner({"ds-flash": [skip()]})
+        j, _s = self.scan_job()
+        r.step()
+        j1 = self.get_job(j["id"])
+        self.assertEqual(j1["status"], "new")
+        self.assertEqual(j1["result"]["code"], "STRUCT")
+        self.assertEqual(self.factory.calls(), 0)
+        self.assertEqual([x for x in self.decisions() if x["what"] == "brain_decision"], [])      # в ленте решений шума нет
 
     def test_model_mode_never_used(self):
         r, j, s = self.run_job(propose(event_seq=1))

@@ -36,6 +36,8 @@ ENTRY_SIZE_MULT_MAX = 0.5                           # потолок size_mult, 
 ENTRY_MIN_STOP_PCT = 0.1                            # стоп не ближе 0.1% к уровню входа (и не ближе ATR(5м) и трёх спредов)
 ENTRY_MAX_STOP_PCT = 10.0
 ENTRY_MAX_LEVEL_DIST_PCT = 3.0                      # уровень входа не дальше 3% от цены
+ENTRY_MAX_LEVEL_DIST_LOOSE_PCT = 5.0                # на уровнях риска 4-5 (paper-разведка входов): до 5%, лимитная заявка ждёт у уровня до ttl
+LOOSE_RISK_LEVEL = 4                                # с этого уровня риска мягче правила диапазона свечи и дальности уровня (entry_scout работает только в paper)
 ENTRY_MAX_ZONE_PCT = 1.0                            # ширина зоны входа без подтверждения не шире 1% от уровня
 RE_SYM = r"^[A-Z0-9]{2,20}$"
 SESSION_ORDER = ("scalp", "intraday", "swing", "position")
@@ -245,7 +247,7 @@ def entry_context(brief, event=None):
     sym = event.get("sym") if isinstance(event.get("sym"), str) else None
     ctx = {"sym": sym, "symbols": None, "px": None, "a5_pct": None, "spread_bps": None, "range_5m_pct": None, "blackout_min": None, "blackout_warn": False,
            "slots": None, "room_allowed": None, "busy": [], "pause_sym": None, "pause_all": None, "stop_streak": None, "kill": None, "exec_mode": None,
-           "no_confirm_allowed": None, "no_confirm_max": None, "session_type": None, "has_brief": bool(brief)}
+           "no_confirm_allowed": None, "no_confirm_max": None, "session_type": None, "has_brief": bool(brief), "risk_level": None, "struct_missing": False}
     if not brief:
         return ctx
     rec = [e for e in (brief.get("recent") or []) if isinstance(e, dict) and e.get("type") == "scanner_signal" and isinstance(e.get("sym"), str)]
@@ -280,6 +282,10 @@ def entry_context(brief, event=None):
     sysd = brief.get("system") if isinstance(brief.get("system"), dict) else {}
     ctx["kill"] = sysd.get("kill") if isinstance(sysd.get("kill"), bool) else None
     ctx["exec_mode"] = (sysd.get("exec") or {}).get("mode") if isinstance(sysd.get("exec"), dict) else None
+    rl = _num((brief.get("risk_level") or {}).get("level")) if isinstance(brief.get("risk_level"), dict) else None
+    ctx["risk_level"] = int(rl) if rl is not None else None
+    sm_ = brief.get("struct_missing") if isinstance(brief.get("struct_missing"), list) else []
+    ctx["struct_missing"] = bool(sym and sym in sm_ and not isinstance(lv, dict))      # структуры по монете события ещё нет (свечи подтягиваются)
     nc = (brief.get("risk_level") or {}).get("no_confirm") if isinstance(brief.get("risk_level"), dict) else None
     if isinstance(nc, dict):
         ctx["no_confirm_allowed"] = nc.get("allowed") if isinstance(nc.get("allowed"), bool) else None
@@ -302,6 +308,11 @@ def entry_context(brief, event=None):
     return ctx
 
 
+def _loose(ctx):
+    """Уровень риска 4-5: разведка входов в paper. Диапазон свечи события не закрывает вход (вход ждёт новую свечу у уровня), уровень допустим дальше."""
+    return (ctx.get("risk_level") or 0) >= LOOSE_RISK_LEVEL
+
+
 def entry_precheck(ctx):
     """Отказ entry/1 по данным досье ДО вызова модели (экономия токенов; те же коды, что дала бы смысловая проверка) -> код или None.
     WIDE_RANGE: диапазон 5м события шире максимального стопа типа сессии (для scalp любой range_5m-сигнал: по определению сканера диапазон >= 0.8%);
@@ -312,7 +323,7 @@ def entry_precheck(ctx):
     if ctx.get("day_max_new_plans") == 0:
         return "DAY_NO_PLANS"
     r5, ms = ctx.get("range_5m_pct"), ctx.get("max_stop_pct")
-    if r5 is not None and ms is not None and r5 > ms:
+    if r5 is not None and ms is not None and r5 > ms and not _loose(ctx):
         return "WIDE_RANGE"
     if ctx.get("slots") is not None and ctx["slots"] <= 0:
         return "NO_SLOTS"
@@ -472,7 +483,7 @@ def _entry(o, ctx):
             errs.append("STOP_WRONG_SIDE")                   # цена уже за стопом
         if (tps[0] - px) * sign <= 0:
             errs.append("TP_REACHED")
-        if abs(lvl - px) / px * 100.0 > ENTRY_MAX_LEVEL_DIST_PCT:
+        if abs(lvl - px) / px * 100.0 > (ENTRY_MAX_LEVEL_DIST_LOOSE_PCT if _loose(ctx) else ENTRY_MAX_LEVEL_DIST_PCT):
             errs.append("LEVEL_FAR")
     rr = _entry_rr(side, lvl, px, stop, tps)
     dist = abs(lvl - stop) / lvl * 100.0
@@ -510,8 +521,8 @@ def _entry(o, ctx):
     dsm = ctx.get("day_size_mult")
     if dsm is not None and dsm < 1.0 and not (isinstance(o.get("size_mult"), (int, float)) and o["size_mult"] <= dsm + 1e-9):
         errs.append("DAY_SIZE")                              # план дня ограничил размер: size_mult обязателен и не выше потолка дня
-    if ctx.get("range_5m_pct") is not None and ctx["range_5m_pct"] > dist:
-        errs.append("RANGE5_GT_STOP")                        # диапазон 5-минутной свечи шире стопа: пропускают
+    if ctx.get("range_5m_pct") is not None and ctx["range_5m_pct"] > dist and not (_loose(ctx) and o.get("confirm") == "candle"):
+        errs.append("RANGE5_GT_STOP")                        # диапазон 5-минутной свечи шире стопа: пропускают (на уровнях 4-5 не для входа с подтверждением свечой: он ждёт новую свечу)
     tags = set(o.get("tags") or [])
     sm = o.get("size_mult")
     bl = ctx.get("blackout_min")
