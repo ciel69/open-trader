@@ -314,13 +314,13 @@ class RoleFiles(unittest.TestCase):
         self.assertFalse(r.live_risk)
         self.assertEqual(r.output_schema, "entry/1")
         self.assertEqual(r.wake_on, ["scanner_signal"])
-        self.assertEqual(r.wake_kinds, ["hot_enter", "range_5m", "turnover_surge", "idea_level"])
+        self.assertEqual(r.wake_kinds, ["hot_enter", "range_5m", "turnover_surge", "patrol", "idea_level"])
         self.assertEqual(r.scope, "team")
         self.assertEqual([k for k in r.wake_kinds if k.startswith("idea_")], ["idea_level"])      # цена у уровня идеи (план дня) будит роль; idea_near/invalidated/tp нет
         brain = jl(os.path.join(ROOT, "config", "brain.json"))
         self.assertEqual(brain["teams"]["A"]["roles"]["entry_scout"]["primary"], "ds-flash")
         self.assertEqual(brain["role_opts"]["entry_scout"]["params"]["thinking"], "low")
-        self.assertEqual(brain["runtime"]["guards"]["role_jobs_per_hour"]["entry_scout"], 20)
+        self.assertEqual(brain["runtime"]["guards"]["role_jobs_per_hour"]["entry_scout"], 36)
         ag = jl(os.path.join(ROOT, "config", "agents.json"))["agents"]["api"]
         self.assertEqual(ag["limits"]["modes"], ["paper"])
 
@@ -370,14 +370,14 @@ class DispatcherWake(unittest.TestCase):
     def test_scanner_jobs_capped_separately_from_position_jobs(self):
         d = self.disp()
         d.step(self.t)                                                          # курсор подписчика встаёт на конец шины
-        for i in range(24):
+        for i in range(40):
             self.emit("hot_enter", "S%d" % i)
         d.step(self.t)
-        self.assertEqual(len(self.jobs()), 20)                                  # потолок класса 3: 20 заданий в час
-        for i in range(3):                                                     # а позиции по-прежнему получают свои 12 в час
+        self.assertEqual(len(self.jobs()), 36)                                  # потолок класса 3: 36 заданий в час (обход + всплески)
+        for i in range(3):                                                     # а позиции получают свои в час отдельно
             bus.emit("entry_filled", {"avg": 1.0}, plan="PL-1028-SOL-0%d" % (i + 1), sym="SOL", root=self.root, now=self.t + 1)
         d.step(self.t + 1)
-        self.assertEqual(len(self.jobs()), 23)                                  # 20 сканерных + 3 по позициям
+        self.assertEqual(len(self.jobs()), 39)                                  # 36 сканерных + 3 по позициям
 
     def test_rate_buckets_reload_ok(self):
         d = self.disp()
@@ -419,7 +419,7 @@ class IdleNoPlan(BrainBase):
         self.assertEqual([e for e in self.bus_events("error")], [])
         d = [x for x in self.decisions() if x["what"] == "brain_decision"]
         self.assertEqual(d[-1]["res"]["code"], "IDLE_NO_PLAN")
-        self.assertIn("ждёт", d[-1]["why"])
+        self.assertIn("нет планов", d[-1]["why"])
         from tb.dash import model2
         row = model2.decision_row(d[-1])
         self.assertFalse(row["denied"])

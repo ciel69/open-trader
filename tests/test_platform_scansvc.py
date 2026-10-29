@@ -16,6 +16,77 @@ def read_sig(root):
     return [e for e in bus.read(0, limit=0, root=root) if e["type"] == "scanner_signal"]
 
 
+class PatrolTest(unittest.TestCase):
+    """Плановый обход: на уровнях риска 4-5 сканер сам будит entry_scout по монетам дня."""
+
+    def setUp(self):
+        self.root = H.mk_root(self)
+        os.makedirs(os.path.join(self.root, "runtime"), exist_ok=True)
+        self.t = {"t": 1_000_000.0}
+        self.lvl = {"v": 5}
+        cfg = S.load_cfg(self.root)["scan"]
+        self.pcfg = dict(cfg["patrol"], every_s=300.0)
+        self.pub = SC.Publisher(self.root, cfg, os.path.join(self.root, "runtime", "hot_events.jsonl"), clock=lambda: self.t["t"])
+        self.pat = SC.Patrol(self.root, self.pcfg, self.pub, clock=lambda: self.t["t"], level_fn=lambda root: self.lvl["v"])
+        self.ctl("platform.json", {"state": "running", "mode": "paper", "trading": True})
+        self.ctl("trading.json", {"enabled": True, "mode": "paper"})
+
+    def ctl(self, name, obj):
+        p = os.path.join(self.root, "state", "control", name)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(obj, f)
+
+    def step(self, s=301.0):
+        self.t["t"] += s
+        return self.pat.tick()
+
+    def syms(self):
+        return [e["sym"] for e in read_sig(self.root) if e["d"]["kind"] == "patrol"]
+
+    def test_rotates_over_day_symbols_and_is_a_wake_event(self):
+        for _ in range(4):
+            self.assertEqual(self.step(), 1)
+        self.assertEqual(self.syms(), ["BTC", "ETH", "SOL", "BTC"])                      # без day_limits: BTC, ETH, SOL по кругу
+        e = [e for e in read_sig(self.root) if e["d"]["kind"] == "patrol"][0]
+        self.assertEqual(e["pri"], "wake")                                              # wake:true в событии даёт приоритет wake (поле d.wake шина не хранит)
+
+    def test_period_and_first_patrol_not_at_start(self):
+        self.assertEqual(self.pat.tick(), 0)                                           # сразу после старта обхода нет
+        self.assertEqual(self.step(100.0), 0)
+        self.assertEqual(self.step(250.0), 1)
+
+    def test_only_high_risk_levels_level4_is_twice_as_rare(self):
+        self.lvl["v"] = 3
+        self.assertEqual(self.step(), 0)
+        self.assertEqual(self.step(), 0)
+        self.lvl["v"] = 4
+        self.pat.last = self.t["t"]
+        self.assertEqual(self.step(), 0)                                               # 301 с < 2 x 300
+        self.assertEqual(self.step(300.0), 1)
+
+    def test_only_paper_running_with_trading_on(self):
+        self.ctl("platform.json", {"state": "running", "mode": "live", "trading": True})
+        self.assertEqual(self.step(), 0)
+        self.ctl("platform.json", {"state": "stopped", "mode": "paper"})
+        self.assertEqual(self.step(), 0)
+        self.ctl("platform.json", {"state": "running", "mode": "paper"})
+        self.ctl("trading.json", {"enabled": False})
+        self.assertEqual(self.step(), 0)
+        self.ctl("trading.json", {"enabled": True})
+        self.assertEqual(self.step(), 1)
+
+    def test_day_symbols_avoid_and_hot_coins(self):
+        self.ctl("day_limits.json", {"symbols": ["BTC", "ETH"], "avoid": ["ETH", "EVAA"]})
+        with open(os.path.join(self.root, "runtime", "hot.json"), "w", encoding="utf-8") as f:
+            json.dump({"top": [{"sym": "EVAA"}, {"sym": "AXIS"}, {"sym": "XAN", "tradable": False}, {"sym": "BTC"}, {"sym": "DOS"}, {"sym": "ERA"}]}, f)
+        self.assertEqual(self.pat.symbols(), ["BTC", "AXIS", "DOS"])                   # ETH и EVAA в avoid, нетрадуемая и дубль отброшены, горячих не больше hot_n
+
+    def test_disabled_by_config(self):
+        self.pat.cfg = dict(self.pcfg, enabled=False)
+        self.assertEqual(self.step(), 0)
+
+
 class PublisherTest(unittest.TestCase):
     def setUp(self):
         self.root = H.mk_root(self)

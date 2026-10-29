@@ -87,8 +87,11 @@ DEFAULTS = {
         "interval": 30.0, "top": 10, "min_turnover": 5e6, "max_spread_bps": 8.0, "max_lot": 15.0, "range_pct": 0.8, "surge_min": 4.0,
         "cooldown": 1200.0, "wake_score": 4.0, "max_per_hour": 12, "idea_zone_pct": 0.3, "outcome_min": "15,60",
         "publish_info": True,           # тихие (wake=false) события тоже в шину, pri=info (как раньше у моста исполнителя)
-        "dedup_s": {"default": 300.0, "idea_near": 1800.0, "idea_level": 86400.0, "idea_invalidated": 86400.0, "idea_tp": 86400.0, "idea_expired": 86400.0},
+        "dedup_s": {"default": 300.0, "patrol": 240.0, "idea_near": 1800.0, "idea_level": 86400.0, "idea_invalidated": 86400.0, "idea_tp": 86400.0, "idea_expired": 86400.0},
         "hb_s": 5.0,
+        "patrol": {                     # плановый обход монет дня (scansvc.Patrol): на уровнях риска >= min_level сканер сам будит entry_scout
+            "enabled": True, "every_s": 300.0, "min_level": 4, "hot_n": 2,
+        },
         "structure": {                  # поток структуры рынка внутри сканера (marketdata/structure.py): runtime/structure.json для досье мозга
             "enabled": True, "env": "mainnet", "every_s": 60.0, "h1_every_s": 600.0, "max_syms": 16,
             "hot_n": 8, "hot_every_s": 180.0, "hot_h1_every_s": 1800.0, "pause_s": 2.0,   # топ-8 горячих монет сверх BTC/ETH/SOL и позиций; пауза между запросами свечей

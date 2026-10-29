@@ -8,7 +8,8 @@
     и любой текст сканера НЕ попадают в шину; финальную очистку делает bus.sanitize);
   - дедупликация: (kind, symbol, idea) не чаще окна dedup_s (по умолчанию 300 с; idea_near 1800 с; idea_level/invalidated/tp/expired сутки);
     окна сеются из хвоста шины при старте, поэтому перезапуск сервиса не даёт дублей;
-  - idea_expired: идея снята по ttl (ideawatch делает это молча); сервис замечает смену статуса в state/ideas.jsonl и публикует событие.
+  - idea_expired: идея снята по ttl (ideawatch делает это молча); сервис замечает смену статуса в state/ideas.jsonl и публикует событие;
+  - patrol: плановый обход монет дня на высоких уровнях риска (класс Patrol), чтобы агент искал входы сам, а не только по всплеску.
 Heartbeat: runtime/platform/scan.hb.json каждые hb_s секунд. Старый режим `./tb bybit read scan --watch` (Monitor, stdout) не затронут. Запуск моста исполнителя
 (executor/scanbridge) при этом выключается переменной TB_SCAN_BRIDGE=0 (её ставит супервизор), иначе события дублировались бы.
 Публичные данные: ключ не нужен; окружение чистит супервизор (ни ключей Bybit, ни прокси).
@@ -210,6 +211,86 @@ class ExpiryWatcher(object):
         return n
 
 
+PATROL_BASE = ("BTC", "ETH", "SOL")
+
+
+def _risk_level(root):
+    from tb.core import risklevels
+    try:
+        return int(risklevels.current_level(root).get("level") or 3)
+    except Exception:
+        return 3
+
+
+class Patrol(object):
+    """Плановый обход рынка. Без него агент реагирует только на события сканера и идей и в тишине просто «ждёт». На высоких уровнях риска
+    (`min_level`, по умолчанию 4) сканер сам, без всплеска, будит entry_scout по очереди на каждую монету дня: day.symbols (иначе BTC/ETH/SOL)
+    плюс до `hot_n` горячих; монеты из day.avoid пропускаются. Период `every_s` на уровне 5, вдвое реже на уровне 4.
+    Идёт только пока день работает в paper с включённой торговлей: entry_scout в live не работает по замыслу. Событие несёт только kind и wake."""
+
+    def __init__(self, root, pcfg, publisher, clock=time.time, level_fn=None):
+        self.root, self.cfg, self.pub, self.clock = root, pcfg or {}, publisher, clock
+        self.level_fn = level_fn or _risk_level
+        self.last = clock()                     # первый обход через период после старта, а не сразу
+        self.i = 0
+        self.published = 0
+
+    def _read(self, *p):
+        d = S.read_json(paths.state("control", *p, root=self.root))
+        return d if isinstance(d, dict) else {}
+
+    def active(self):
+        """-> уровень риска, если обход разрешён, иначе None."""
+        if not self.cfg.get("enabled", True):
+            return None
+        lvl = self.level_fn(self.root)
+        if lvl < int(self.cfg.get("min_level", 4)):
+            return None
+        plat, trade = self._read("platform.json"), self._read("trading.json")
+        if plat.get("state") != "running" or plat.get("mode") != "paper" or trade.get("enabled") is not True:
+            return None
+        return lvl
+
+    def symbols(self):
+        day = self._read("day_limits.json")
+        avoid = set(x for x in (day.get("avoid") or []) if isinstance(x, str))
+        base = [x for x in (day.get("symbols") or []) if isinstance(x, str) and _SYM.match(x)] or list(PATROL_BASE)
+        out = [x for x in base if x not in avoid]
+        hot = S.read_json(paths.runtime("hot.json", root=self.root))
+        n = 0
+        for r in (hot.get("top") if isinstance(hot, dict) and isinstance(hot.get("top"), list) else []):
+            if n >= int(self.cfg.get("hot_n", 2)):
+                break
+            s = r.get("sym") if isinstance(r, dict) else None
+            if isinstance(s, str) and _SYM.match(s) and r.get("tradable") is not False and s not in avoid and s not in out:
+                out.append(s)
+                n += 1
+        return out
+
+    def tick(self):
+        """-> 1, если событие обхода отправлено."""
+        now = self.clock()
+        every = float(self.cfg.get("every_s", 300.0))
+        if now - self.last < every:
+            return 0
+        lvl = self.active()
+        if lvl is None:
+            return 0
+        if lvl < 5:
+            if now - self.last < 2 * every:
+                return 0
+        syms = self.symbols()
+        if not syms:
+            return 0
+        self.last = now
+        sym = syms[self.i % len(syms)]
+        self.i += 1
+        if self.pub.publish({"kind": "patrol", "wake": True}, sym, now):
+            self.published += 1
+            return 1
+        return 0
+
+
 def params_of(scfg):
     keys = ("top", "min_turnover", "max_spread_bps", "max_lot", "range_pct", "surge_min", "cooldown", "max_per_hour", "wake_score", "outcome_min",
             "idea_zone_pct", "interval")
@@ -233,6 +314,7 @@ def run(root, cfg, client=None, clock=time.time, sleep=time.sleep, stop=lambda: 
     hs_kwargs = dict(hs_kwargs or {})
     pub = Publisher(root, scfg, events_path or hs_kwargs.get("log_path"), clock, emit)
     exp = ExpiryWatcher(ideas_path or ((os.path.join(os.path.dirname(hs_kwargs["log_path"]), "ideas.jsonl")) if hs_kwargs.get("log_path") else ideas.ideas_path(root)), pub)
+    patrol = Patrol(root, scfg.get("patrol"), pub, clock)
     hb_s = float(scfg.get("hb_s") or 5.0)
     state = {"hb": -1e18, "scans": 0}
 
@@ -246,6 +328,7 @@ def run(root, cfg, client=None, clock=time.time, sleep=time.sleep, stop=lambda: 
     def tick():
         pub.poll()
         exp.check()
+        patrol.tick()
         beat()
         if stop():
             raise _Stop()

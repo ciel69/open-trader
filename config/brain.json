@@ -99,7 +99,7 @@
   "day_usd": 2.0,
   "job_usd": 0.05,
   "job_tokens": 60000,
-  "jobs_per_hour": 12,
+  "jobs_per_hour": 36,
   "critical_per_hour": 30,
   "warn_frac": 0.8
  },
@@ -146,9 +146,9 @@
    "loop_window_s": 600,
    "loop_block_s": 600,
    "jobs_total_per_hour": 60,
-   "scan_jobs_per_hour": 20,
+   "scan_jobs_per_hour": 36,
    "role_jobs_per_hour": {
-    "entry_scout": 20
+    "entry_scout": 36
    }
   }
  },

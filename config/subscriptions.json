@@ -38,15 +38,16 @@
           "hot_enter",
           "range_5m",
           "turnover_surge",
+          "patrol",
           "idea_level"
         ]
       },
       "rate": {
-        "jobs_per_hour": 12,
+        "jobs_per_hour": 36,
         "critical_per_hour": 30,
         "coalesce_s": 90,
         "class_jobs_per_hour": {
-          "3": 20,
+          "3": 36,
           "4": 10
         }
       },

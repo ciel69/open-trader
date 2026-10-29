@@ -18,7 +18,7 @@ An autonomous trading platform for USDT-margined perpetual futures on Bybit, wit
 
 The default profile is `paper`: it trades on paper against real public Bybit prices. Live trading is an explicit, gated owner decision.
 
-Risk levels 1-5 set size and limits in code. At levels 4-5 the brain is told to take valid setups instead of skipping out of caution (all hard rules and limits stay). The brain also sees what its own work costs (tokens per day against the day's result) and a ledger of paper experiments, so it can repeat hypotheses that held up on paper.
+Risk levels 1-5 set size and limits in code. At levels 4-5 the brain is told to take valid setups instead of skipping out of caution (all hard rules and limits stay), and the scanner patrols the day's coins on a schedule so the entry scout hunts for setups on its own (long and short, up to swing horizons) instead of waiting for a spike. The brain also sees what its own work costs (tokens per day against the day's result) and a ledger of paper experiments, so it can repeat hypotheses that held up on paper.
 
 ## Safety principles
 

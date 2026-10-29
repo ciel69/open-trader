@@ -610,9 +610,9 @@ class RuntimeWiring(BrainBase):
         self.assertFalse(api["enabled"])
         reg = roles_runtime.load(ROOT)
         self.assertEqual(set(api["roles"]), {"position_manager", "reviewer", "morning_analyst", "entry_scout"})
-        self.assertEqual(api["filter"]["kinds"], ["hot_enter", "range_5m", "turnover_surge", "idea_level"])      # из idea_* роль будит только idea_level (цена у уровня идеи)
+        self.assertEqual(api["filter"]["kinds"], ["hot_enter", "range_5m", "turnover_surge", "patrol", "idea_level"])      # patrol: плановый обход; из idea_* роль будит только idea_level (цена у уровня идеи)
         self.assertEqual(api["filter"]["max_class"], 4)
-        self.assertLessEqual(api["rate"]["class_jobs_per_hour"]["3"], 20)
+        self.assertLessEqual(api["rate"]["class_jobs_per_hour"]["3"], 36)
         self.assertLessEqual(api["rate"]["class_jobs_per_hour"]["4"], 10)
         self.assertGreaterEqual(api["rate"]["coalesce_s"], 60)
         for rid, types in api["roles"].items():

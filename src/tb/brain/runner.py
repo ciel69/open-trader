@@ -336,7 +336,7 @@ class Runner(object):
         except DossierError as e:
             if str(e).startswith("NO_PLAN"):          # не ошибка: мозг просто ждёт (нет планов и позиций). Нейтральная запись «idle», события error на шине нет
                 out.update(outcome="idle", code="IDLE_NO_PLAN")
-                self._journal(job, role, agent_id, None, "note", "IDLE_NO_PLAN", "ждёт: нет планов и позиций, управлять нечем", meta, None, meter, assign)
+                self._journal(job, role, agent_id, None, "note", "IDLE_NO_PLAN", "нет планов и позиций, управлять нечем (входы ищет entry_scout)", meta, None, meter, assign)
                 return out
             out.update(outcome="no_action", code="DOSSIER")
             self._journal(job, role, agent_id, None, "skip", "DOSSIER", str(e)[:100], meta, None, meter, assign)
