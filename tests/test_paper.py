@@ -99,6 +99,20 @@ class TestStateDirect(unittest.TestCase):
         self.assertEqual(r.pos, s.pos)
         self.assertEqual(r.account(), s.account())
 
+    def test_dirty_flag_set_by_executions_and_orders(self):
+        """Изменения, которые нельзя терять при жёстком перезапуске (исполнение, ордер, стоп), помечают состояние для немедленной записи."""
+        s = self.mk()
+        self.assertFalse(s.dirty)
+        s.submit(self.order("l1", "Buy", "market", 1.0, sl=95.0), 1001.0)
+        self.assertTrue(s.dirty)
+        self.assertTrue(s.execs)
+        s.dirty = False
+        s.set_stop("SOL", 97.0, "last")
+        self.assertTrue(s.dirty)
+        s.dirty = False
+        s.on_tick("SOL", 100.5, 100.45, 100.55, 100.5, None, 1002.0)       # котировка без исполнений состояние не трогает
+        self.assertFalse(s.dirty)
+
     def test_two_identical_runs_equal(self):
         def run():
             s = self.mk()

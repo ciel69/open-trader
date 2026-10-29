@@ -148,6 +148,7 @@ class PaperState(object):
         self.funding_log = []                 # [{"sym","ts","rate","amount"}]
         self._seq = 0
         self._oseq = 0
+        self.dirty = False                    # было изменение, ещё не записанное на диск (исполнения, ордера, стопы)
 
     # ---- служебное ----
     def _id(self, pref):
@@ -205,6 +206,7 @@ class PaperState(object):
         """Принимает ордер (dict: sym, link_id, side Buy|Sell, type market|limit, qty, price, reduce_only, post_only, sl, sl_trigger).
         Валидацию (стоп, размер, дубль link_id) делает порт. -> события."""
         o = dict(o)
+        self.dirty = True
         self._oseq += 1
         o.update({"order_id": "PO-%06d" % self._oseq, "seq": self._oseq, "ts": ts, "ready_ts": ts + self.cfg["latency_ms"] / 1000.0,
                   "filled": 0.0, "status": "New", "marketable": False})
@@ -225,6 +227,7 @@ class PaperState(object):
         return ev
 
     def _finish(self, o, status, ev, cancel_type=""):
+        self.dirty = True
         o["status"] = status
         o["cancel_type"] = cancel_type
         self.orders.pop(o["link_id"], None)
@@ -244,6 +247,7 @@ class PaperState(object):
         o = self.orders.get(link_id)
         if not o:
             return None
+        self.dirty = True
         if price is not None:
             o["price"] = price
         if qty is not None:
@@ -261,6 +265,7 @@ class PaperState(object):
     def set_stop(self, sym, price, trigger):
         p = self.pos.get(sym)
         if p:
+            self.dirty = True
             p["sl"], p["sl_trigger"] = price, trigger
 
     # ---- исполнение ----
@@ -299,6 +304,7 @@ class PaperState(object):
              "is_maker": is_maker, "link_id": link, "order_id": oid, "stop_type": stop_type, "exec_type": exec_type,
              "closed_size": closed_size, "pnl": pnl, "ts_ms": int(round(ts * 1000))}
         self.execs.append(e)
+        self.dirty = True
         d = dict(e)
         d["kind"] = "execution"
         ev.append(d)

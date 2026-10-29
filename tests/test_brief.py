@@ -173,6 +173,21 @@ class TestStructure(Base):
         self.assertEqual(b["market"]["blackout"], {"event": "macro", "in_min": 340, "mode": "block"})   # имя события не идентификатор -> «macro»
         self.assertEqual(len(b["checklist"]), 10)
 
+    def test_room_uses_risk_level_profile(self):
+        """Комната в брифе считается по профилю выбранного уровня риска (как на дашборде), а не по базовому."""
+        from unittest import mock
+        from tb.core import risklevels
+        seen = {}
+
+        def fake_room(root, trades, prof, port, active, now):
+            seen["prof"] = prof
+            return {"allowed": True, "reasons": []}
+        with mock.patch.object(risklevels, "effective", lambda prof, root=None: dict(prof, marker=1)), \
+                mock.patch.object(brief._model(), "risk_room", fake_room):
+            b = self.build()
+        self.assertEqual(seen["prof"].get("marker"), 1)
+        self.assertTrue(b["room"]["allowed"])
+
     def test_positions_from_plan_and_journal_are_merged(self):
         b = self.build()
         self.assertEqual(len(b["positions"]), 1)                              # журнальная SOL привязана к плану по journal_id

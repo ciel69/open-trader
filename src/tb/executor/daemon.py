@@ -158,9 +158,15 @@ class Daemon(object):
             except OSError:
                 pass
             ex.need_reconcile = True
-        if self.paper_save and time.time() - getattr(self, "_ps", 0) > 60:
-            self._ps = time.time()
-            self.paper_save()
+        if self.paper_save:
+            st = getattr(getattr(ex, "port", None), "state", None)
+            now = time.time()
+            # исполнения и ордера пишем сразу (не реже раза в секунду): иначе жёсткий перезапуск откатывает порт и тейк исполняется дважды
+            if (st is not None and getattr(st, "dirty", False)) or now - getattr(self, "_ps", 0) > 60:
+                self._ps = now
+                if st is not None:
+                    st.dirty = False
+                self.paper_save()
 
     def _sync_subs(self):
         want = self.ex.desired()

@@ -344,8 +344,14 @@ def _cost_rt_pct(c):
 def _b_room(c):
     if not c.prof.get("session_types"):
         return {"allowed": None, "why": "no_profile"}
+    prof = c.prof
     try:
-        r = _model().risk_room(c.root, c.trades, c.prof, c.port, c.active, c.now)
+        from tb.core import risklevels
+        prof = risklevels.effective(c.prof, c.root)      # как на дашборде: лимиты выбранного уровня риска, а не базового профиля
+    except Exception:
+        prof = c.prof
+    try:
+        r = _model().risk_room(c.root, c.trades, prof, c.port, c.active, c.now)
     except (KeyError, TypeError, ValueError, ZeroDivisionError) as e:
         return {"allowed": None, "why": e.__class__.__name__}
     rows = {x["id"]: x for x in r.get("rows") or []}
