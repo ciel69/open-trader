@@ -59,6 +59,19 @@ class CoreCycle(unittest.TestCase):
         # мартингейл-ловушка: в плане нет позиции и ордеров
         self.assertNotIn("SOL", self.e.port.pos)
 
+    def test_close_reason_uses_latest_fill_not_last_written(self):
+        """Сверка дописывает ранний фрагмент (сработавший тейк) уже после стопа: причиной остаётся стоп, а не manual (случай HAEDAL 2026-10-29)."""
+        p = {"rt": {"pos": {"cur_stop": 0.02575, "initial_stop": 0.02575}, "close": {}, "targets": {"t1": {"link": "tbx-3-2"}}}, "spec": {"side": "long"}}
+        stop_fill = {"ts": 1793261224.6, "px": 0.025687, "qty": 670.0, "stop_type": "StopLoss", "link": "", "exec_type": "Trade"}
+        tp_fill = {"ts": 1793260914.6, "px": 0.02641, "qty": 660.0, "stop_type": "", "link": "", "exec_type": "closed_pnl"}
+        avg = (0.025687 * 670.0 + 0.02641 * 660.0) / 1330.0                    # средняя цена выхода выше стопа
+        ex = self.e.ex
+        self.assertEqual(ex._close_reason(p, [stop_fill, tp_fill], avg), "sl")     # порядок записи: стоп первым, тейк (из сверки) последним
+        self.assertEqual(ex._close_reason(p, [tp_fill, stop_fill], avg), "sl")
+        no_type = dict(stop_fill, stop_type="")
+        self.assertEqual(ex._close_reason(p, [no_type, tp_fill], avg), "sl")       # без stop_type: цена последнего фрагмента у стопа
+        self.assertEqual(ex._close_reason(p, [tp_fill], 0.02641), "manual")        # единственный фрагмент вдали от стопа и без ссылки на цель: ручное
+
     def test_tp_both_targets(self):
         pid = self.e.enter()
         self.e.tick(104.1)

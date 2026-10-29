@@ -1256,7 +1256,10 @@ class Executor(object):
         pre = (rt.get("close") or {}).get("reason")
         if pre:
             return pre
-        last = parts[-1] if parts else {}
+        # последний по ВРЕМЕНИ фрагмент закрытия, а не по порядку записи: сверка дописывает ранние фрагменты (например сработавший тейк) уже после стопа,
+        # и стоп оставался «не последним» (закрытие помечалось manual). Цена проверки близости к стопу: цена этого фрагмента, не средняя по всем
+        last = max(parts, key=lambda x: float(x.get("ts") or 0.0)) if parts else {}
+        ref_px = float(last.get("px") or exit_px or 0.0)
         st = last.get("stop_type") or ""
         if st in ("StopLoss", "PartialStopLoss", "TrailingStop"):
             return "sl"
@@ -1269,7 +1272,7 @@ class Executor(object):
             return "tp"
         stop = float(rt["pos"].get("cur_stop") or rt["pos"].get("initial_stop") or 0)
         s = 1.0 if spec["side"] == "long" else -1.0
-        if stop and s * (exit_px - stop) <= 0.002 * stop and not link:
+        if stop and s * (ref_px - stop) <= 0.002 * stop and not link:
             return "sl"
         return "manual"
 
