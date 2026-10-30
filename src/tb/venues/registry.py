@@ -6,6 +6,7 @@
 factory(profile, root, selftest, venue_id) -> Bundle(port, feed, saver, client), где profile = trade|testnet|paper. Ключи читает launcher до запуска процесса, не фабрика.
 """
 import os
+import sys
 
 from tb import paths
 from tb.core import exchcfg
@@ -113,6 +114,12 @@ def _bybit(profile, root, selftest, venue_id):
     client.transport = make_transport()
     if not client.key or not client.secret:
         raise SystemExit("нет ключа в окружении: запускайте через ./tb (launcher грузит профиль)")
+    try:        # ордерные запросы по WebSocket Trade API, если включено (exec_limits.ws_trade.enabled); иначе всё идёт по REST keep-alive как раньше
+        from tb.core import exec_cfg
+        from tb.executor import ws_trade
+        ws_trade.wrap_client(client, exec_cfg.load(root).get("ws_trade"), env)
+    except Exception as e:      # WS необязателен: без него работает REST, но причину не прячем
+        print("ws_trade: не подключён (%s: %s), ордера идут по REST" % (type(e).__name__, str(e)[:80]), file=sys.stderr)
     return Bundle(LivePort(client), bybit_wsx.BybitFeed(client), None, client)
 
 

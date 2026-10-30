@@ -126,10 +126,13 @@ def prepare_bybit(argv, environ=None, system=None):
 
 
 def exec_profile(argv):
-    """['exec','run','--profile','trade',...] или '--profile=trade' -> 'trade'|'testnet'|'paper'|... (как написано) либо None, если не `exec run`/нет флага."""
-    if len(argv) < 2 or argv[0] != "exec" or argv[1] != "run":
+    """['exec','run','--profile','trade',...] или '--profile=trade' -> 'trade'|'testnet'|'paper'|... (как написано) либо None, если не `exec run`/нет флага.
+    `exec wscheck` (проверка WebSocket Trade API, ничего не торгует) без флага работает на testnet: ключ testnet грузится так же, как для `exec run --profile testnet`."""
+    if len(argv) < 2 or argv[0] != "exec" or argv[1] not in ("run", "wscheck"):
         return None
     rest = argv[2:]
+    if argv[1] == "wscheck" and not any(a == "--profile" or a.startswith("--profile=") for a in rest):
+        return "testnet"
     for i, a in enumerate(rest):
         if a == "--profile":
             return rest[i + 1] if i + 1 < len(rest) else None
