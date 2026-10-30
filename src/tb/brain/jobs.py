@@ -41,18 +41,49 @@ def _write(root, job):
     atomic_write_json(_path(root, job["id"]), job, indent=None)
 
 
+_TERM_CACHE = {}     # каталог заданий -> {имя файла: (mtime_ns, задание)}: терминальное задание больше не меняется, его не нужно перечитывать на каждом опросе воркера
+
+
 def list_jobs(root=None, status=None):
-    """Все задания (по возрастанию id), при status — только с таким статусом (строка или кортеж)."""
+    """Все задания (по возрастанию id), при status — только с таким статусом (строка или кортеж).
+
+    Терминальные задания (done|failed|expired|skipped) читаются один раз и дальше берутся из памяти процесса: опрос очереди раз в секунду стоил
+    прочтения и разбора ВСЕХ файлов каталога (тысячи за сутки), теперь это листинг имён плюс чтение только незавершённых."""
+    d = jobs_dir(root)
     try:
-        names = sorted(n for n in os.listdir(jobs_dir(root)) if n.startswith("J-") and n.endswith(".json"))
+        names = sorted(n for n in os.listdir(d) if n.startswith("J-") and n.endswith(".json"))
     except OSError:
         return []
+    want = None if status is None else ((status,) if isinstance(status, str) else tuple(status))
+    cache = _TERM_CACHE.setdefault(d, {})
+    if len(cache) > len(names):                       # файлы удалены чисткой: забываем их
+        have = set(names)
+        for gone in [k for k in cache if k not in have]:
+            del cache[gone]
     out = []
     for n in names:
+        hit = cache.get(n)
+        if hit is not None:
+            try:
+                same = os.stat(os.path.join(d, n)).st_mtime_ns == hit[0]      # stat на порядок дешевле открытия и разбора; правка файла снаружи сбрасывает запись
+            except OSError:
+                same = False
+            if same:
+                if want is None or hit[1].get("status") in want:
+                    out.append(dict(hit[1]))
+                continue
+            cache.pop(n, None)
+        try:
+            mt = os.stat(os.path.join(d, n)).st_mtime_ns
+        except OSError:
+            continue
         j = _read(root, n)
         if j is None:
             continue
-        if status is None or j.get("status") in ((status,) if isinstance(status, str) else status):
+        if j.get("status") in TERMINAL:
+            cache[n] = (mt, j)
+            j = dict(j)
+        if want is None or j.get("status") in want:
             out.append(j)
     return out
 
@@ -70,8 +101,9 @@ def _order(j):
     return (j.get("prio") if isinstance(j.get("prio"), int) else 9, j.get("ts_first") or 0, j["id"])
 
 
-def pick(root, now, owner=None, busy_keys=(), max_attempts=3, ttl_s=900.0, rev=None):
+def pick(root, now, owner=None, busy_keys=(), max_attempts=3, ttl_s=900.0, rev=None, max_prio=None):
     """Берёт ОДНО готовое задание (status new, not_before <= now, retry_at <= now, ключ не занят) -> job (уже taken) или None.
+    max_prio: «быстрая полоса» воркера: берёт только задания с классом не больше (0 связь/kill, 1 исполнение, 2 вехи позиции), поиск входов (3-4) занимает остальные воркеры.
     Просроченные (старше ttl_s с последнего события) закрываются как expired. Дубли того же (sub,key) в статусе new сливаются в выбранное."""
     with _lock(root):
         rows = list_jobs(root, "new")
@@ -83,6 +115,8 @@ def pick(root, now, owner=None, busy_keys=(), max_attempts=3, ttl_s=900.0, rev=N
                 _write(root, j)
                 continue
             if (j.get("not_before") or 0) > now or (j.get("retry_at") or 0) > now or j.get("key") in busy_keys:
+                continue
+            if max_prio is not None and (j.get("prio") if isinstance(j.get("prio"), int) else 9) > max_prio:
                 continue
             if int(j.get("attempts") or 0) >= max_attempts:
                 j.update(status="failed", done_ts=round(now, 1), result={"outcome": "failed", "code": "ATTEMPTS"})

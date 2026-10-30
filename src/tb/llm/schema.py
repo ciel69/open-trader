@@ -171,9 +171,31 @@ def check_text(text, schema, max_bytes=MAX_JSON_BYTES):
     return (obj, []) if not errs else (None, errs)
 
 
+HINT_TEXT = {      # постоянные пояснения к кодам смысловой проверки (не цитаты ответа): слабой модели одного кода мало, чтобы исправить ответ
+    "STOP_WRONG_SIDE": "the stop must be on the losing side of the current price px (long: stop below px, short: stop above px)",
+    "SIDE_PRICES": "long: stop < level < tp1 < tp2; short: stop > level > tp1 > tp2",
+    "NO_CONFIRM_SIZE": "an entry without candle confirmation needs size_mult <= 0.5 (or the lower cap from brief.limits)",
+    "NO_CONFIRM_TAG": "an entry without candle confirmation needs tags to contain \"no-confirm\"",
+    "NO_CONFIRM_FORBIDDEN": "the risk level forbids entries without candle confirmation: skip or wait for the confirmation",
+    "NO_CONFIRM_AFTER_STOPS": "after two stops in a row only entries with candle confirmation are allowed",
+    "ZONE_REQUIRED": "an entry without confirmation needs zone {low, high} that contains level, width at most 1% of level",
+    "TAG_MISMATCH": "the tag no-confirm is allowed only for an entry without candle confirmation",
+}
+
+
 def hint(codes):
-    """Подсказка для повторного запроса: только коды ошибок, без цитат ответа."""
-    return "Answer rejected. CODES: %s. Return only one JSON object per the schema, with no text before or after." % "; ".join(codes[:MAX_ERRORS])
+    """Подсказка для повторного запроса: коды ошибок и постоянные пояснения к известным кодам, без цитат ответа."""
+    codes = list(codes)[:MAX_ERRORS]
+    out = "Answer rejected. CODES: %s." % "; ".join(codes)
+    seen, notes = set(), []
+    for c in codes:
+        base = str(c).split(":")[0]
+        if base in HINT_TEXT and base not in seen:
+            seen.add(base)
+            notes.append("%s = %s" % (base, HINT_TEXT[base]))
+    if notes:
+        out += " MEANING: %s." % "; ".join(notes)
+    return out + " Return only one JSON object per the schema, with no text before or after."
 
 
 class JsonResult(object):

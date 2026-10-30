@@ -117,6 +117,57 @@ def _usage(root, now, q):
     return out
 
 
+def _ts(s):
+    import calendar
+    try:
+        return float(calendar.timegm(time.strptime(str(s)[:19], "%Y-%m-%dT%H:%M:%S")))
+    except (ValueError, TypeError):
+        return None
+
+
+def models_perf(root, now, days, mode):
+    """Результат по моделям: сделки с тегом model.<профиль> (expstats, без исключённых сбоем платформы) + учёт вызовов LLM (usage) за период.
+    Эффективность: чистый результат (PnL минус расход на ИИ), PnL на 100 вызовов, на $ и на 1M токенов. n < MIN_N помечается: выводы по такой выборке ненадёжны."""
+    from tb.core import expstats
+    from tb.llm import usage as U
+    since = now - days * 86400.0
+    calls = U.aggregate(U.read_rows(root, since=since), "profile")
+    by = {}
+    for t in expstats.load_trades(mode, root=root, with_rules=False):
+        ts = _ts(t.get("ts_close"))
+        if ts is None or ts < since or t.get("shadow"):
+            continue
+        by.setdefault(t.get("model") or "—", []).append(t)
+    rows = []
+    for mid in sorted(set(calls) | set(by)):
+        c, ts = calls.get(mid) or {}, by.get(mid, [])
+        n = len(ts)
+        pnl = sum(t["pnl"] or 0.0 for t in ts)
+        rs = [t["r"] for t in ts if t.get("r") is not None]
+        n_calls = c.get("calls", 0)
+        toks = (c.get("in", 0) or 0) + (c.get("out", 0) or 0)
+        usd = c.get("usd", 0.0) or 0.0
+        rows.append({"id": mid, "calls": n_calls, "toks": toks, "usd": round(usd, 4), "err_rate": c.get("err_rate"), "fmt_err_rate": c.get("fmt_err_rate"),
+                     "lat_p50_ms": c.get("lat_p50_ms"), "n": n, "wins": sum(1 for t in ts if (t["pnl"] or 0.0) > 0), "pnl": round(pnl, 4),
+                     "avg_r": round(sum(rs) / len(rs), 3) if rs else None, "net": round(pnl - usd, 4),
+                     "pnl_per_100_calls": round(pnl / n_calls * 100.0, 3) if n_calls and n else None,
+                     "pnl_per_usd": round(pnl / usd, 2) if usd > 0 and n else None,
+                     "pnl_per_mtok": round(pnl / toks * 1e6, 2) if toks and n else None,
+                     "calls_per_trade": round(n_calls / float(n), 1) if n else None, "reliable": n >= expstats.MIN_N})
+    rows.sort(key=lambda r: (-(r["net"] if r["n"] else -1e9), r["id"]))
+    return {"days": days, "mode": mode, "min_n": expstats.MIN_N, "rows": rows,
+            "note": "Результат сделки приписан модели, подавшей план (тег model.*); учёт вызовов идёт по профилю. Выборка мала: до n=%d это наблюдение, а не вывод." % expstats.MIN_N}
+
+
+def _models_perf(root, now, q):
+    try:
+        days = max(1, min(90, int((q.get("days") or ["7"])[0])))
+    except ValueError:
+        days = 7
+    mode = (q.get("mode") or ["paper"])[0]
+    return models_perf(root, now, days, mode if mode in ("live", "paper", "testnet", "all") else "paper")
+
+
 def _revisions(root, now, q):
     from tb.brain import swap
     names = []
@@ -145,7 +196,7 @@ def _overview(root, now, q):
 
 
 ROUTES = {"overview": _overview, "providers": _providers, "presets": _presets, "profiles": _profiles, "roles": _roles, "exchanges": _exchanges, "usage": _usage,
-          "revisions": _revisions}
+          "models_perf": _models_perf, "revisions": _revisions}
 
 
 def api(path, query, root, now):

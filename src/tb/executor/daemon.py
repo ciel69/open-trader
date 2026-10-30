@@ -14,6 +14,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from tb import paths
+from tb.core import doorbell
 from tb.executor import mdsvc
 from tb.executor.ports import MarketFeed
 from tb.executor.scanbridge import ScanBridge
@@ -215,6 +216,10 @@ class Daemon(object):
         self._stop = asyncio.Event()
         self._wire()
         self.ex.start()
+        try:      # команда мозга в _inbox будит исполнителя сразу (опрос раз в inbox_s остаётся запасным)
+            self._bell = doorbell.Bell("exec", self.ex.root, callback=lambda: self.q.put(("inbox", None)))
+        except OSError:
+            self._bell = None
         self._worker = threading.Thread(target=self._work, name="exec-worker", daemon=True)
         self._worker.start()
         self._guardian = threading.Thread(target=self._guard_loop, name="exec-guardian", daemon=True)
@@ -245,6 +250,8 @@ class Daemon(object):
         """Быстрое завершение (цель до ~10 с): фид останавливается с лимитом feed_stop_s, невыбранные события очереди отбрасываются (все они пересоздаются
         таймером/реконсиляцией при следующем старте), рабочему потоку даётся join_s на текущее событие."""
         self._guard_stop.set()
+        if getattr(self, "_bell", None) is not None:
+            self._bell.close()
         try:
             await asyncio.wait_for(self.feed.stop(), timeout=self.feed_stop_s)
         except Exception:

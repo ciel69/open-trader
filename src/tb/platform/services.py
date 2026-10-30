@@ -102,7 +102,7 @@ DEFAULTS = {
     "dispatch": {
         "poll_s": 1.0,
         "retry_base_s": 2.0, "retry_max_s": 60.0, "max_attempts": 5,       # webhook: повторы доставки, затем отказ с записью в журнал
-        "api": {"jobs_per_hour": 12, "critical_per_hour": 30, "coalesce_s": 60.0, "settle_s": 5.0, "max_seqs": 20},
+        "api": {"jobs_per_hour": 12, "critical_per_hour": 30, "coalesce_s": 60.0, "settle_s": 5.0, "settle_by_class": {"1": 0.5, "2": 1.0}, "max_seqs": 20},
         "queue_keep": 2000,
         "classes": {                    # тип события -> класс приоритета (0 высший); scanner_signal: kind idea_* -> 4, прочие -> 3
             "connectivity": 0, "kill": 0, "limit_hit": 0, "error": 0, "reconcile_alert": 0, "service_down": 0, "exec_down": 0, "exec_stopped": 0,

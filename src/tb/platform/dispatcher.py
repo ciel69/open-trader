@@ -22,12 +22,13 @@ import os
 import re
 import signal
 import sys
+import threading
 import time
 import urllib.request
 from urllib.parse import urlparse
 
 from tb import fsutil, paths
-from tb.core import bus, localcfg
+from tb.core import bus, doorbell, localcfg
 from tb.core.filelock import FileLock, atomic_write_json
 from tb.platform import services as S
 
@@ -354,12 +355,18 @@ class Jobs(object):
             jid = "J-%s-%s%03d" % (time.strftime("%Y%m%dT%H%M%S", time.gmtime(now)), os.getpid() % 1000, self.n)
             kinds = [(ev.get("d") or {}).get("kind")] if (ev.get("d") or {}).get("kind") else []
             job = {"id": jid, "sub": sub, "status": "new", "prio": cls, "key": key, "plan": ev.get("plan"), "sym": ev.get("sym"),
-                   "ts_first": round(now, 1), "ts_last": round(now, 1), "not_before": round(now + (0.0 if crit else float(lim["settle_s"])), 1),
+                   "ts_first": round(now, 1), "ts_last": round(now, 1), "not_before": round(now + (0.0 if crit else float((lim.get("settle_by_class") or {}).get(str(cls), lim["settle_s"]))), 2),
                    "count": 1, "seqs": [ev["seq"]], "types": [ev["type"]], "kinds": kinds, "dropped_before": self.dropped.pop(sub, 0)}
             os.makedirs(self.dir, exist_ok=True)
             atomic_write_json(self._path(jid), job, indent=None)
             self._open[(sub, key)] = jid
             self._bump(sub, bucket, now)
+            doorbell.ring("brain", self.root)                                      # воркер мозга берёт задание сразу
+            wait = job["not_before"] - now
+            if wait > 0:                                                           # задание станет готовым через settle_s: позвонить ещё раз к этому моменту
+                t = threading.Timer(wait + 0.05, doorbell.ring, args=("brain", self.root))
+                t.daemon = True
+                t.start()
             return "created", jid
 
     def pending(self):
@@ -571,15 +578,28 @@ class Dispatcher(object):
 
     def run(self, max_seconds=None, sleep=time.sleep, stop=lambda: False):
         t0 = self.clock()
-        while not stop():
+        bell = None
+        if sleep is time.sleep:                          # реальный запуск: просыпаемся по звонку шины (опрос остаётся запасным); в тестах sleep подменён
             try:
-                self.step()
-            except Exception as e:                       # цикл диспетчера не должен падать от одного странного события
-                self.dlog.log("-", {}, "error", self.clock(), err=type(e).__name__)
-            self.heartbeat()
-            if max_seconds is not None and self.clock() - t0 >= max_seconds:
-                break
-            sleep(float(self.dc["poll_s"]))
+                bell = doorbell.Bell("dispatch", self.root)
+            except OSError:
+                bell = None
+        try:
+            while not stop():
+                try:
+                    self.step()
+                except Exception as e:                       # цикл диспетчера не должен падать от одного странного события
+                    self.dlog.log("-", {}, "error", self.clock(), err=type(e).__name__)
+                self.heartbeat()
+                if max_seconds is not None and self.clock() - t0 >= max_seconds:
+                    break
+                if bell is not None:
+                    bell.wait(float(self.dc["poll_s"]))
+                else:
+                    sleep(float(self.dc["poll_s"]))
+        finally:
+            if bell is not None:
+                bell.close()
         return 0
 
 

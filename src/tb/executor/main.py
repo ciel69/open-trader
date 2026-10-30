@@ -203,7 +203,8 @@ def cmd_reconcile(argv):
 
 
 def cmd_verify(argv):
-    r = decisions.verify()
+    """По умолчанию быстрая проверка (закрытые сегменты по манифесту, активный файл целиком); `--deep` перечитывает весь журнал."""
+    r = decisions.verify(fast="--deep" not in argv)
     _out(r)
     return 0 if r.get("ok") else 1
 

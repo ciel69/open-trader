@@ -21,6 +21,7 @@ import re
 import time
 
 from tb import fsutil, paths
+from tb.core import doorbell
 
 PRI_WAKE = "wake"      # будит мозг (чат: строка в `events --follow`; API: триаж)
 PRI_INFO = "info"      # только очередь и brief.recent_events
@@ -524,6 +525,7 @@ def emit(type_, d=None, plan=None, sym=None, pri=None, root=None, now=None):
             fsutil.replace(tmp, paths.bus(".seq", root=root))
         except OSError:
             pass                                   # счётчик вторичен: события уже на диске
+        doorbell.ring("dispatch", root)            # диспетчер просыпается сразу, а не по таймеру опроса
         return seq
 
 

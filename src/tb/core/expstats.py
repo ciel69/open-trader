@@ -95,6 +95,16 @@ def rules_by_plan(root=None):
     return out
 
 
+def _excluded_ids(root=None):
+    """Сделки, результат которых искажён сбоем платформы, а не рынком: state/exclude_trades.json {"ids": [...]} (правит владелец/агент вручную, журнал не меняется)."""
+    try:
+        with open(paths.state("exclude_trades.json", root=root), encoding="utf-8") as f:
+            d = json.load(f)
+        return set(x for x in (d.get("ids") or []) if isinstance(x, str)) if isinstance(d, dict) else set()
+    except (OSError, ValueError):
+        return set()
+
+
 def load_trades(mode="all", root=None, with_rules=True):
     """-> [закрытые сделки] из trades.jsonl, отфильтрованные по mode (paper|live|testnet|all). Битые строки пропускаются; события
     add/part/adjust/post не нужны (итог берётся из close). Нет файла = []."""
@@ -121,9 +131,10 @@ def load_trades(mode="all", root=None, with_rules=True):
             elif ev == "close" and r["id"] in opened:
                 opened[r["id"]].update(r)
     out = []
+    skip = _excluded_ids(root)
     for i in order:
         t = opened[i]
-        if not t.get("ts_close") or _num(t.get("pnl_usdt")) is None:
+        if i in skip or not t.get("ts_close") or _num(t.get("pnl_usdt")) is None:
             continue
         n = _norm(t)
         if mode == "all" or n["mode"] == mode:

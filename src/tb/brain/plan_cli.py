@@ -23,7 +23,7 @@ from tb.core import ideas as ideas_core
 from tb.core import plan_schema
 
 DEFAULT_WAIT_S = 10.0
-POLL_S = 0.2
+POLL_S = 0.05      # ответ исполнителя ждём коротким опросом одного файла (stat), задержка до 50 мс вместо 200
 DEDUP_WINDOW_S = 600.0
 ACTOR = "brain:chat"
 LIST_FIELDS = ("id", "sym", "side", "mode", "status", "rev", "hold")
@@ -544,7 +544,8 @@ def _revision(root, plan_id, rev):
 
 
 def _decisions(root, plan_id, limit):
-    rows = [r for r in common.read_jsonl(paths.decisions_file(root=root)) if r.get("plan") == plan_id]
+    from tb.core import decisions as _dec
+    rows = _dec.last(limit if limit else 10 ** 6, plan=plan_id, root=root)       # с конца и через закрытые сегменты журнала: не читает весь журнал
     out = []
     for r in rows[-limit:]:
         d = {k: common.clean_struct(r.get(k)) for k in DECISION_KEYS if k in r and k != "why"}

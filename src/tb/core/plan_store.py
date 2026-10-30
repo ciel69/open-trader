@@ -18,7 +18,7 @@ import uuid
 
 from tb import fsutil
 from tb import paths
-from tb.core import plan_schema
+from tb.core import doorbell, plan_schema
 from tb.core.filelock import FileLock, atomic_write_json
 
 ARCHIVE_AFTER_DAYS = 7
@@ -383,6 +383,7 @@ class PlanStore(object):
             if os.path.exists(path) or self.seen_cmd(cmd_id):
                 return cmd_id
             atomic_write_json(path, cmd, sync=True)
+        doorbell.ring("exec", self.root)          # исполнитель забирает команду сразу, а не на следующем опросе _inbox
         return cmd_id
 
     def inbox_list(self):
