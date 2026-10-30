@@ -18,7 +18,7 @@ from tb import paths
 from tb.core import bus, decisions, exec_cfg
 from tb.core.filelock import atomic_write_json, pid_alive
 
-SUBCOMMANDS = ("status", "halt", "resume", "reconcile", "verify", "replay", "run")
+SUBCOMMANDS = ("status", "halt", "resume", "reconcile", "verify", "replay", "run", "wscheck")
 PROFILES = ("trade", "testnet", "paper")
 EXIT_NOT_IMPLEMENTED = 2
 EXIT_ALREADY_RUNNING = 4
@@ -220,7 +220,64 @@ def cmd_replay(argv):
     return 0
 
 
-COMMANDS = {"run": cmd_run, "status": cmd_status, "halt": cmd_halt, "resume": cmd_resume, "reconcile": cmd_reconcile, "verify": cmd_verify, "replay": cmd_replay}
+def cmd_wscheck(argv):
+    """Проверка WebSocket Trade API на живой бирже (запускать на testnet: `./tb exec wscheck` в профиле testnet). Ничего не торгует: шлёт N отмен несуществующего
+    ордера по WS и по REST (ответ биржи 110001 «ордера нет» подтверждает полный круг запроса) и сравнивает задержки. Ключ берётся из окружения профиля."""
+    ap = argparse.ArgumentParser(prog="tb exec wscheck")
+    ap.add_argument("-n", type=int, default=15)
+    ap.add_argument("--symbol", default="BTCUSDT")
+    ap.add_argument("--profile", default="testnet", choices=("testnet", "trade"), help="профиль ключа (его грузит launcher); по умолчанию testnet")
+    ap.add_argument("--gap", type=float, default=0.2, help="пауза между кругами, с; больше 10 с показывает цену «холодного» REST-соединения (idle_post=10 с)")
+    a = ap.parse_args(argv)
+    from tb.executor import ws_trade
+    from tb.executor.transport import make_transport
+    from tb.venues import bybit
+    c = bybit.make_client()
+    if not c.key or not c.secret:
+        print("нет ключа в окружении: запускайте через ./tb с профилем testnet", file=sys.stderr)
+        return 2
+    c.transport = make_transport()
+    c.sync_time()
+    ws = ws_trade.WsTrade(c.key, c.secret, env=c.env, offset_ms=lambda: c.offset_ms or 0).start()
+    if not ws.wait_ready(10.0):
+        print(json.dumps({"ok": False, "why": "WS Trade не готов за 10 с (авторизация %s)" % ("отклонена" if ws.auth_failed else "не завершена")}, ensure_ascii=False))
+        ws.close()
+        return 1
+    ws_ms, rest_ms, bad = [], [], []
+    for i in range(a.n):
+        link = "wschk-%d-%d" % (int(time.time()) % 100000, i)
+        body = {"category": "linear", "symbol": a.symbol, "orderLinkId": link}
+        t = time.monotonic()
+        try:
+            m = ws.request("order.cancel", [body], {"X-BAPI-TIMESTAMP": str(int(time.time() * 1000) + (c.offset_ms or 0)), "X-BAPI-RECV-WINDOW": bybit.RECV_WINDOW})
+            ws_ms.append((time.monotonic() - t) * 1000.0)
+            if m.get("retCode") not in (110001, 20001):
+                bad.append("ws:%s" % m.get("retCode"))
+        except Exception as e:
+            bad.append("ws:%s" % type(e).__name__)
+        t = time.monotonic()
+        try:
+            c.call("POST", "/v5/order/cancel", dict(body, orderLinkId=link + "r"))
+        except bybit.BybitError as e:
+            rest_ms.append((time.monotonic() - t) * 1000.0)
+            if e.code not in (110001, 20001):
+                bad.append("rest:%s" % e.code)
+        except Exception as e:
+            bad.append("rest:%s" % type(e).__name__)
+        time.sleep(a.gap)
+    ws.close()
+
+    def q(v, p):
+        s = sorted(v)
+        return round(s[min(len(s) - 1, int(p * (len(s) - 1) + 0.5))], 1) if s else None
+    out = {"ok": not bad and bool(ws_ms), "env": c.env, "n": a.n, "ws_ms": {"p50": q(ws_ms, 0.5), "p95": q(ws_ms, 0.95)}, "rest_ms": {"p50": q(rest_ms, 0.5), "p95": q(rest_ms, 0.95)},
+           "problems": bad[:8], "stats": ws.stats}
+    _out(out)
+    return 0 if out["ok"] else 1
+
+
+COMMANDS = {"run": cmd_run, "status": cmd_status, "halt": cmd_halt, "resume": cmd_resume, "reconcile": cmd_reconcile, "verify": cmd_verify, "replay": cmd_replay,
+            "wscheck": cmd_wscheck}
 
 
 def main(argv=None):

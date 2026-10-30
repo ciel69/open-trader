@@ -127,6 +127,11 @@ funding-crowded-reversal, liq-cascade-reclaim, news-listing-retest, news-negativ
 - **Сейчас только paper (`paper_only: true`). Если на paper сторож окажется жизнеспособным (смотреть число пробуждений, расход токенов и результат решений мозга через `./tb exp stats` и `decisions what=watch_wake`), его нужно включить и для live: `position_watch.paper_only=false`. Решение за владельцем.**
 - Суточный доллар-потолок на `position_manager` пока не применяется (бюджет роли в `brain/runner.py` проверяется только у `entry_scout`); защита от трат это лимит пробуждений.
 
+## WebSocket Trade API Bybit для ордеров (`executor/ws_trade.py`, `exec_limits.json: ws_trade`)
+- По постоянному авторизованному соединению (`wss://stream.bybit.com/v5/trade`, testnet `stream-testnet`) идут ордерные запросы `order.create`, `order.amend`, `order.cancel`: вход, закрытие по рынку, reduce-only лесенка, правка и отмена лимитов. REST keep-alive остаётся для всего остального: подтяжка стопа позиции (`/v5/position/trading-stop`), `cancel-all`, `set-leverage`, чтение (у Trade API биржи этих операций нет).
+- До отправки ничего не потеряно: WS не готов, значит запрос уходит на REST. После отправки без ответа исход неизвестен (`PortError unknown`, сверка по `orderLinkId`), повтора на REST нет.
+- **Выключено по умолчанию.** Сначала проверка на testnet: `./tb exec wscheck` (профиль testnet; шлёт отмены несуществующего ордера по WS и REST, сравнивает p50/p95 и проверяет круг ответа 110001), затем `ws_trade.enabled=true` в `config/local/exec_limits.json`. Для paper не нужно (там нет биржи).
+
 ## Проверки guard (кроме лимитов выше)
 - RR считается после издержек круга (платформа 0.28%, Bybit 0.24% номинала), размер от стопа плюс издержки: убыток по стопу вместе с комиссиями не выше бюджета.
 - Коррелированные позиции (BTC, ETH, SOL) в одну сторону делят один бюджет риска сделки; противоположная сторона не ограничивается.

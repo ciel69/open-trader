@@ -25,6 +25,8 @@ DEFAULTS = {
     # сторож позиции (logic/watch.py): будит мозг (position_manager) по STALLED / FLOW_TURN. paper_only=true: пока только бумажные позиции.
     # TODO(live): если на paper сторож окажется жизнеспособным (число пробуждений и результат решений мозга, ./tb exp stats), включить для live: paper_only=false (решение владельца)
     "position_watch": {"enabled": True, "paper_only": True, "stalled_min": 15, "stalled_min_r": 0.5, "flow_turn_s": 30, "max_wakes_per_hour": 3},
+    # WebSocket Trade API Bybit (executor/ws_trade.py): ордерные запросы (create/amend/cancel) по постоянному соединению. Выключено до проверки на testnet: ./tb exec wscheck
+    "ws_trade": {"enabled": False, "request_timeout_s": 5.0, "ping_s": 20.0},
     "entry": {"max_price_age_s": 3, "max_chase_bps": 15, "no_confirm_max_size_mult": 0.5, "blocked_attempts_max": 3,
               "retry_after_s": 15, "fill_wait_s": 2, "max_level_distance_pct": 25},
     "protections": {"symbol_cooldown_after_stop_min": 30,

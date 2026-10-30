@@ -28,6 +28,11 @@
   "flow_turn_s": 30,
   "max_wakes_per_hour": 3
  },
+ "ws_trade": {
+  "enabled": false,
+  "request_timeout_s": 5.0,
+  "ping_s": 20.0
+ },
  "entry": {
   "max_price_age_s": 3,
   "max_chase_bps": 15,
