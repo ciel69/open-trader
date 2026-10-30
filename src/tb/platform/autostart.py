@@ -5,6 +5,7 @@ Windows: PowerShell-скрипт, регистрирующий задачу Пл
 Инструкция: docs/RUNBOOK.md.
 """
 import os
+import posixpath
 from xml.sax.saxutils import escape
 
 LABEL = "com.traider-bot.platform"
@@ -17,9 +18,10 @@ def _args(passthru):
 
 def launchd_plist(root, passthru=()):
     """plist: RunAtLoad + перезапуск при НЕнулевом выходе (`./tb down` завершает платформу кодом 0: launchd её не поднимает обратно)."""
-    prog = [os.path.join(root, "tb"), "up"] + _args(passthru)
+    root = str(root).replace("\\", "/")            # plist читает macOS: пути всегда с «/», даже если файл напечатан на Windows
+    prog = [posixpath.join(root, "tb"), "up"] + _args(passthru)
     items = "\n".join("        <string>%s</string>" % escape(x) for x in prog)
-    out = os.path.join(root, "runtime", "logs")
+    out = posixpath.join(root, "runtime", "logs")
     return """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Сгенерировано командой ./tb up с флагом печати launchd. Не установлено. Установка (владелец): сохранить как ~/Library/LaunchAgents/%(label)s.plist,

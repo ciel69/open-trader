@@ -159,6 +159,10 @@
       "critical_per_hour": 30,
       "coalesce_s": 60.0,
       "settle_s": 5.0,
+      "settle_by_class": {
+        "1": 0.5,
+        "2": 1.0
+      },
       "max_seqs": 20
     },
     "queue_keep": 2000,

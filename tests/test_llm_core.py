@@ -198,9 +198,14 @@ class TestTransport(_llm.LLMBase):
         self.assertEqual(self.srv.count("/x"), 1)
 
     def test_connection_refused(self):
+        import socket
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        s.close()                       # порт гарантированно закрыт; на Windows отказ в соединении приходит только после ~2 с повторов SYN, поэтому connect_s с запасом
         tr = Transport()
         with self.assertRaises(LLMError) as c:
-            tr.request("POST", "http://127.0.0.1:1/x", {}, b"{}", {"connect_s": 1, "read_s": 1, "total_s": 3}, {"max": 0})
+            tr.request("POST", "http://127.0.0.1:%d/x" % port, {}, b"{}", {"connect_s": 6, "read_s": 1, "total_s": 10}, {"max": 0})
         self.assertEqual(c.exception.code, "network")
 
     def test_stale_keepalive_reconnects_once(self):

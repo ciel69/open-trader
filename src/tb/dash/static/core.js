@@ -167,7 +167,7 @@ for (var _k in UI_DEF) ui[_k] = UI_DEF[_k];
 ui.open = {};          // раскрытые строки: ключ -> true (не сохраняется)
 ui.bdo = false;
 // Разделы боковой рейки: каждый собирает несколько страниц (вкладок TABS); не вошедшие в список вкладки-расширения попадают в «Систему».
-var GROUPS = [["now", "Сейчас", ["overview"]], ["brain", "Мозг", ["plans", "decisions", "brief", "ideas"]], ["trades", "Сделки", ["trades", "day"]],
+var GROUPS = [["now", "Сейчас", ["overview"]], ["brain", "Мозг", ["plans", "decisions", "brief", "ideas", "models"]], ["trades", "Сделки", ["trades", "day"]],
   ["market", "Рынок", ["market", "intel"]], ["system", "Система", ["system", "settings", "control", "notify"]]];
 function groupOf(tab) {
   for (var i = 0; i < GROUPS.length; i++) if (GROUPS[i][2].indexOf(tab) >= 0) return GROUPS[i];

@@ -219,13 +219,9 @@ def role_opts_set(root, role, params=None, budget=None, clear=False):
     else:
         new = {"params": dict(cur.get("params") or {}), "budget": dict(cur.get("budget") or {})}
         if params is not None:
-            new["params"].update(params)
-            for k in [k for k, v in params.items() if v is None]:
-                new["params"].pop(k, None)
+            new["params"].update(params)          # None остаётся в записи: локальный слой так гасит значение из config/brain.json (читатель отбрасывает None)
         if budget is not None:
             new["budget"].update(budget)
-            for k in [k for k, v in budget.items() if v is None]:
-                new["budget"].pop(k, None)
         _o, bad = conf_mod.check_role_opts(role, new)
         if bad:
             return _res(False, "E_ARGS", bad)
@@ -233,6 +229,11 @@ def role_opts_set(root, role, params=None, budget=None, clear=False):
     def mut(d):
         d.setdefault("version", 1)
         ro = d.setdefault("role_opts", {})
+        if new and not clear:                # прежние «сняты» (None) в локальном слое не теряем, иначе значение из config/brain.json вернётся
+            for sec in ("params", "budget"):
+                for k, v in ((ro.get(role) or {}).get(sec) or {}).items():
+                    if v is None and k not in new[sec]:
+                        new[sec][k] = None
         if new:
             ro[role] = new
         else:

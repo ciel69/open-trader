@@ -85,11 +85,11 @@ class Tables(unittest.TestCase):
                 else:
                     os.environ[k] = v
         self.assertTrue(tok)
-        with open(os.path.join(d, "config", "providers.json")) as f:
+        with open(os.path.join(d, "config", "providers.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["providers"]["deepseek"]["base_url"], "http://127.0.0.1:1")
-        with open(os.path.join(d, "config", "subscriptions.json")) as f:
+        with open(os.path.join(d, "config", "subscriptions.json"), encoding="utf-8") as f:
             self.assertTrue([s for s in json.load(f)["subscribers"] if s["id"] == "api"][0]["enabled"])
-        with open(os.path.join(_bootstrap.ROOT, "config", "subscriptions.json")) as f:
+        with open(os.path.join(_bootstrap.ROOT, "config", "subscriptions.json"), encoding="utf-8") as f:
             self.assertFalse([s for s in json.load(f)["subscribers"] if s["id"] == "api"][0]["enabled"])      # реальный конфиг не тронут
         self.assertTrue(os.path.isfile(os.path.join(d, "_keys", "agents", "api.token")))
 

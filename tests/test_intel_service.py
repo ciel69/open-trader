@@ -593,7 +593,12 @@ class TestCli(SvcCase):
 
     def test_calendar_marks_unverified(self):
         self.write("config/intel.json", json.dumps({"calendar": CAND}))
-        rc, out, _ = self.run_cli(["calendar"])
+        import time as _time
+        import types
+        from tb.intel import cli
+        fixed = types.SimpleNamespace(time=lambda: NOW, gmtime=_time.gmtime, strftime=_time.strftime, localtime=_time.localtime)
+        with mock.patch.object(cli, "time", fixed):            # кандидаты календаря заданы датами 2026-10-28/11-06: команда показывает только ближайшие 30 дней от «сейчас», поэтому «сейчас» фиксируем
+            rc, out, _ = self.run_cli(["calendar"])
         self.assertEqual(rc, 0)
         self.assertIn("НЕТ", out)
         self.assertIn("ПРОВЕРИТЬ ПО ОФИЦИАЛЬНОМУ КАЛЕНДАРЮ", out)

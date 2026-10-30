@@ -750,6 +750,8 @@ class TestPerformance(unittest.TestCase):
         root = tempfile.mkdtemp(prefix="tbdash2p_")
         try:
             gen.build(root, NOW, many=200)
+            api("/api/v2/state", {}, root)            # прогрев: первое чтение свежесозданных файлов и ленивые импорты на Windows занимают 1+ с (антивирус, импорты), а проверяется скорость расчёта
+            api("/api/v2/decisions", {"limit": ["200"]}, root)
             model._CACHE.clear()
             t = time.time()
             code, st = api("/api/v2/state", {}, root)

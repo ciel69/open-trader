@@ -108,6 +108,24 @@ class TestSanitize(unittest.TestCase):
 
 
 class TestEmitRead(Base):
+    def setUp(self):
+        """Суточная ротация шины сравнивает день mtime файла с днём `now` события; тесты живут на фиксированном NOW (28.10.2026), поэтому после каждой записи
+        mtime файла приводится к NOW: иначе в любой другой день первая запись уходила бы в ротированный файл и тест зависел от даты запуска."""
+        Base.setUp(self)
+        self._emit = bus.emit
+
+        def emit(*a, **k):
+            r = self._emit(*a, **k)
+            p = paths.bus_events(root=k.get("root"))
+            if os.path.exists(p):
+                os.utime(p, (NOW, NOW))
+            return r
+        bus.emit = emit
+
+    def tearDown(self):
+        bus.emit = self._emit
+        Base.tearDown(self)
+
     def test_seq_monotonic_and_format(self):
         s1 = bus.emit("plan_armed", {"rev": 1}, plan=PLAN, sym="SOL", root=self.root, now=NOW)
         s2 = bus.emit("kill", {"state": "on", "flatten": False}, root=self.root, now=NOW + 1)

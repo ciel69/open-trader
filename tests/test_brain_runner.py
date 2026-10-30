@@ -134,6 +134,50 @@ class HappyPath(BrainBase):
         self.assertEqual(self.get_job("J-1")["result"]["code"], "NOT_LIVE_TEAM")
 
 
+class ToolFirst(BrainBase):
+    """position_manager: действие вызовом pm_* исполняется сразу, объяснение приходит текстом постфактум и пишется как brain_why."""
+
+    def test_tool_call_executes_then_why_is_recorded(self):
+        from fakes.fake_llm import Tool
+        r = self.runner({"ds-pro": [Tool("pm_move_stop", {"to": "be", "reason": "PROFIT_LOCK"}), '{"why": "ушла +1R | px 146.9 | риск 0"}']})
+        s = self.emit()
+        self.job("J-1", seqs=[s])
+        self.assertTrue(r.step())
+        j = self.get_job("J-1")
+        self.assertEqual((j["status"], j["result"]["outcome"]), ("done", "decision"))
+        c = self.gw.tool_calls("stop_plan")
+        self.assertEqual(len(c), 1)
+        self.assertEqual((c[0]["args"]["to"], c[0]["args"]["rev"], c[0]["args"]["id"], c[0]["args"]["event_seq"]), ("be", 3, PLAN, s))    # plan и rev платформа подставила сама
+        why = [x for x in self.decisions() if x["what"] == "brain_why"]
+        self.assertEqual(len(why), 1)
+        self.assertIn("+1R", why[0]["why"])
+        self.assertEqual((why[0]["args"]["tool"], why[0]["args"]["decision"], why[0]["args"]["has_why"]), ("pm_move_stop", "move_stop", True))
+        self.assertEqual(len(self.factory.clients["ds-pro"].calls), 2)           # вызов + текст с объяснением
+
+    def test_action_happens_even_without_explanation(self):
+        from fakes.fake_llm import Tool
+        r = self.runner({"ds-pro": [Tool("pm_close", {"reason": "INVALIDATION"}), ""]})
+        self.job("J-1")
+        r.step()
+        self.assertEqual(len(self.gw.tool_calls("close_plan")), 1)
+        why = [x for x in self.decisions() if x["what"] == "brain_why"]
+        self.assertEqual((why[0]["res"]["code"], why[0]["args"]["has_why"]), ("NO_WHY", False))
+
+    def test_rejected_tool_call_is_not_executed_and_second_action_is_blocked(self):
+        from fakes.fake_llm import Tool
+        r = self.runner({"ds-pro": [Tool("pm_move_stop", {"to": "abc", "reason": "RISK"}), Tool("pm_hold", {"reason": "NO_ACTION"}), Tool("pm_close", {"reason": "RISK"}), '{"why": "держу"}']})
+        self.job("J-1")
+        r.step()
+        self.assertEqual(self.gw.tool_calls("stop_plan") + self.gw.tool_calls("close_plan"), [])
+        self.assertEqual(self.get_job("J-1")["result"]["outcome"], "hold")
+
+    def test_old_json_answer_still_accepted(self):
+        r = self.runner({"ds-pro": [pm("move_stop", {"to": "be"}, why="ушла +1R")]})
+        self.job("J-1")
+        r.step()
+        self.assertEqual(len(self.gw.tool_calls("stop_plan")), 1)
+
+
 class FormatHandling(BrainBase):
     def test_junk_around_json_accepted(self):
         r = self.runner({"ds-pro": ["вот ответ:\n```json\n" + json.dumps(pm("hold")) + "\n```"]})

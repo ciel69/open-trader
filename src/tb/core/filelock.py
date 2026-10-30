@@ -133,7 +133,7 @@ class FileLock(object):
         while True:
             try:
                 fd = os.open(lp, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            except FileExistsError:
+            except (FileExistsError, PermissionError):      # Windows: файл, который сейчас удаляют или читает другой поток, даёт PermissionError, а не FileExistsError
                 if self._is_stale(lp):
                     self._break_stale(lp)
                     continue
@@ -163,10 +163,16 @@ class FileLock(object):
         del held[key]
         pid, tok = _read_lock(self.path)
         if tok == ent[0] or (pid == os.getpid() and not tok):
-            try:
-                os.remove(self.path)
-            except OSError:
-                pass
+            for i in range(200):
+                try:
+                    os.remove(self.path)
+                    break
+                except FileNotFoundError:
+                    break
+                except PermissionError:     # Windows: пока ждущий поток читает файл (stale-проверка), удалить его нельзя; без повтора блокировка осталась бы висеть
+                    time.sleep(0.005)
+                except OSError:
+                    break
         return False
 
 

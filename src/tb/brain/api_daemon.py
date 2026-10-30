@@ -17,18 +17,25 @@ import time
 from tb import paths
 from tb.brain import jobs, lifejobs, swap
 from tb.brain.runner import Runner
+from tb.core import doorbell
 
 HB_S = 5.0
 
 
-def _worker(runner, poll_s):
+FAST_LANE_PRIO = 2          # быстрая полоса: связь/kill/лимиты (0), исполнение (1), вехи позиции (2); поиск входа по сканеру (3-4) её не занимает
+
+
+def _worker(runner, poll_s, bell=None, max_prio=None):
     while not runner.stop_event.is_set():
         try:
-            did = lifejobs.step(runner) or runner.step()      # задания жизненного цикла L-* (WP14) раньше событийных
+            did = runner.step(max_prio=max_prio) if max_prio is not None else (lifejobs.step(runner) or runner.step())      # задания жизненного цикла L-* (WP14) раньше событийных
         except Exception:        # воркер не умирает от одного плохого задания: ошибка уже учтена в process
             did = False
         if not did:
-            runner.stop_event.wait(poll_s)
+            if bell is not None:
+                bell.wait(poll_s)                             # звонок диспетчера будит сразу; опрос раз в poll_s остаётся запасным
+            else:
+                runner.stop_event.wait(poll_s)
 
 
 def _seed_rates(runner):
@@ -56,7 +63,12 @@ def run_daemon(runner=None, root=None, max_seconds=None, poll_s=None, join_s=8.0
     if r.errors:
         for e in r.errors[:10]:
             print("brain: замечание: %s" % e, flush=True)
-    th = [threading.Thread(target=_worker, args=(r, poll), name="brain-w%d" % i, daemon=True) for i in range(int(rt["workers"]))]
+    try:
+        bell = doorbell.Bell("brain", root)
+    except OSError:
+        bell = None
+    nw = int(rt["workers"])
+    th = [threading.Thread(target=_worker, args=(r, poll, bell, FAST_LANE_PRIO if (i == 0 and nw >= 2) else None), name="brain-w%d" % i, daemon=True) for i in range(nw)]
     for t in th:
         t.start()
     t0 = time.time()
@@ -90,6 +102,8 @@ def run_daemon(runner=None, root=None, max_seconds=None, poll_s=None, join_s=8.0
             r.stop_event.wait(0.5)
     finally:
         r.stop_event.set()
+        if bell is not None:
+            bell.close()                 # будит воркеров, ждущих звонка
         for t in th:
             t.join(join_s)
         with r._lk:

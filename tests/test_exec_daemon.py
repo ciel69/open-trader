@@ -196,5 +196,29 @@ class PaperProfile(unittest.TestCase):
             e.close()
 
 
+    def test_max_hold_close_not_resent_on_every_tick(self):
+        """Регрессия: закрытие по max_hold повторялось на каждом тике (cancel_all снимал живой ордер, новый не успевал за latency 300 мс), позиция висела часами."""
+        from tb.executor.paper_port import PaperPort
+        e = Env(env="paper", port=lambda clk, root: PaperPort.from_config(equity=40.0, root=root, clock=clk))
+        try:
+            e.port.on_private = e.q.append
+            r = e.submit(plan_long(mode="paper", lifecycle={"ttl_min": 60, "max_hold_min": 1}))
+            self.assertTrue(r["ok"], r)
+            pid = r["plan_id"]
+            e.tick(100.1)
+            e.candle(100.3)
+            e.tick(100.25)
+            for _ in range(6):
+                e.tick(100.3, dt=0.5)
+            self.assertEqual(e.rt(pid)["status"], "managing")
+            e.clock.advance(61.0)
+            for _ in range(40):                       # тики чаще latency (0.1 с < 0.3 с)
+                e.tick(100.3, dt=0.1)
+            self.assertIn(e.rt(pid)["status"], ("closed", "closing"))
+            self.assertLess(len(e.decisions(what="close")), 10)      # не по записи на каждый тик
+        finally:
+            e.close()
+
+
 if __name__ == "__main__":
     unittest.main()

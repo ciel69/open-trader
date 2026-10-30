@@ -138,7 +138,7 @@
   "job_ttl_s": 900,
   "max_attempts": 3,
   "stale_taken_s": 300,
-  "keep_jobs_s": 259200,
+  "keep_jobs_s": 86400,
   "guards": {
    "same_decision_max": 3,
    "same_decision_window_s": 3600,

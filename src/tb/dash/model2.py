@@ -380,7 +380,14 @@ def read_plans(root):
 
 
 def read_decisions(root, tail=DEC_TAIL):
-    return [r for r in model.read_jsonl(paths.decisions_file(root=root), tail=tail) if isinstance(r.get("seq"), (int, float))]
+    rows = [r for r in model.read_jsonl(paths.decisions_file(root=root), tail=tail) if isinstance(r.get("seq"), (int, float))]
+    if len(rows) < tail:                       # сразу после ротации активный файл короткий: недостающее берём из последнего закрытого сегмента
+        from tb.core import decisions as dec
+        segs = dec.segments(root)
+        if segs:
+            older = [r for r in model.read_jsonl(segs[-1], tail=tail - len(rows)) if isinstance(r.get("seq"), (int, float))]
+            rows = older + rows
+    return rows
 
 
 def read_events(root, tail=EV_TAIL):

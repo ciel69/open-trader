@@ -180,18 +180,35 @@ class Handler(BaseHTTPRequestHandler):
     def _deny(self):
         self._json(405, {"error": "method not allowed"})
 
+    DRAIN_MAX = 1 << 20
+
+    def _drain(self):
+        """Вычитывает присланное тело (ограничено), чтобы отказ ушёл раньше закрытия сокета: иначе на Windows клиент, ещё дописывающий тело, получает сброс соединения вместо ответа."""
+        try:
+            n = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            return
+        if 0 < n <= self.DRAIN_MAX:
+            try:
+                self.rfile.read(n)
+            except OSError:
+                pass
+
     def do_POST(self):
         """POST только под /api/ctl/*; всё прочее 405. Разбор и проверки: ctlweb.CtlWeb.post."""
         if not self._host_ok():
+            self._drain()
             return self._json(403, {"error": "bad host"})
         path = urlparse(self.path).path
         if not path.startswith("/api/ctl/") or self.ctl is None:
+            self._drain()
             return self._deny()
         try:
             n = int(self.headers.get("Content-Length") or "-1")
         except ValueError:
             n = -1
         if n < 0 or n > ctlweb.MAX_BODY:
+            self._drain()
             return self._json(400, {"ok": False, "code": "E_BODY", "msg": ctlweb.ERR_TEXT["E_BODY"]})
         body = self.rfile.read(n) if n else b""
         try:

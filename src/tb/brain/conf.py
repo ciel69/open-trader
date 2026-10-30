@@ -26,7 +26,7 @@ DEFAULTS = {
                    "phrase_model": "СМЕНИТЬ МОДЕЛЬ {role} {old} -> {new}", "allow_with_open_positions": True, "probe_max_age_s": 300},
     "eval": {"min_valid_first": 0.95, "max_critical_violations": 0, "max_violation_rate": 0.05, "min_decision_match": 0.8, "max_usd": 0.5},
     "fallback": {"on": list(FALLBACK_ON), "live_risk_requires_live_ok": True, "protect_only_after_s": 120, "cooldown_s": {"base": 60, "max": 900}},
-    "runtime": {"workers": 2, "poll_s": 1.0, "job_ttl_s": 900, "max_attempts": 3, "stale_taken_s": 300, "keep_jobs_s": 259200,
+    "runtime": {"workers": 2, "poll_s": 1.0, "job_ttl_s": 900, "max_attempts": 3, "stale_taken_s": 300, "keep_jobs_s": 86400,
                 "guards": {"same_decision_max": 3, "same_decision_window_s": 3600, "loop_jobs_max": 8, "loop_window_s": 600, "loop_block_s": 600,
                            "jobs_total_per_hour": 60, "scan_jobs_per_hour": 6, "role_jobs_per_hour": {}}},
 }
@@ -116,11 +116,12 @@ def check_role_opts(role, raw):
         return {}, "неизвестная роль"
     if not isinstance(raw, dict) or any(k not in ("params", "budget") for k in raw):
         return {}, "ожидается {params, budget}"
-    prm = raw.get("params", {})
+    # null = «снято владельцем»: так локальный слой гасит значение из поставляемого config/brain.json (слияние слоёв не умеет удалять ключ)
+    prm = {k: v for k, v in (raw.get("params") or {}).items() if v is not None} if isinstance(raw.get("params", {}), dict) else raw.get("params")
     bad = check_params(prm)
     if bad:
         return {}, bad
-    bud = raw.get("budget", {})
+    bud = {k: v for k, v in raw.get("budget", {}).items() if v is not None} if isinstance(raw.get("budget", {}), dict) else raw.get("budget")
     if not isinstance(bud, dict) or any(k != "day_usd" for k in bud) or any(not _num(v, 0) for v in bud.values()):
         return {}, "budget: {day_usd: число >= 0}"
     return {"params": dict(prm), "budget": dict(bud)}, None

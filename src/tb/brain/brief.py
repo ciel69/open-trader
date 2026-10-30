@@ -182,7 +182,14 @@ def _b_limits(c):
     if not s.get("config"):
         return None
     n_open = len(c.brief_positions) if hasattr(c, "brief_positions") else 0
-    slots = max(0, int(s["max_open_positions"]) - n_open)
+    cap = int(s["max_open_positions"])
+    if _is_paper(c):        # в paper слоты профиля не действуют, потолок исполнителя paper.max_active
+        try:
+            from tb.core import exec_cfg
+            cap = int(exec_cfg.load(c.root)["paper"]["max_active"])
+        except (ValueError, KeyError, TypeError, OSError):
+            pass
+    slots = max(0, cap - n_open)
     daily_left = None
     if s.get("daily_loss_usdt") is not None:
         lost = -sum(min(0.0, t.get("pnl_usdt") or 0.0) for t in c.trades if t.get("status") == "closed" and str(t.get("ts_close") or "").startswith(c.today))
@@ -392,6 +399,13 @@ def _cost_rt_pct(c):
     return _r(2.0 * (cc["fee"] + (common.num(cc.get("slip")) or 0.0)) * 100.0)
 
 
+def _is_paper(c):
+    try:
+        return common.ident(c.health["data"].get("mode")) == "paper"
+    except (AttributeError, KeyError, TypeError):
+        return False
+
+
 def _b_room(c):
     if not c.prof.get("session_types"):
         return {"allowed": None, "why": "no_profile"}
@@ -407,6 +421,10 @@ def _b_room(c):
         return {"allowed": None, "why": e.__class__.__name__}
     rows = {x["id"]: x for x in r.get("rows") or []}
     nr = r.get("next_risk") or {}
+    if _is_paper(c):        # guard._evaluate_paper не применяет сессию, слоты, дневной лимит и серию стопов: бумажный вход по ним не закрыт (дашборд показывает те же числа справочно)
+        return _drop_none({"allowed": True, "paper": True, "note": "paper: лимиты дня, слотов и серии стопов вход не закрывают",
+                           "next_risk_usdt": _r(nr.get("full")), "daily_room": _r((rows.get("daily") or {}).get("room")),
+                           "session_room": _r((rows.get("session") or {}).get("room"))})
     return _drop_none({"allowed": bool(r.get("allowed")), "reasons": [common.clean_text(x, 90) for x in (r.get("reasons") or [])[:4]],
                        "next_risk_usdt": _r(nr.get("usdt")), "limited_by": common.clean_text(nr.get("limited_by") or "", 30) or None,
                        "slots_free": None if (rows.get("slots") or {}).get("room") is None else int(rows["slots"]["room"]), "daily_room": _r((rows.get("daily") or {}).get("room")),

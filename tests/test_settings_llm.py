@@ -277,6 +277,19 @@ class TestProfilesAndRoles(Base):
         self.assertTrue(profiles.role_opts_set(self.root, "news_reader", clear=True)["ok"])
         self.assertNotIn("news_reader", conf_mod.load(self.root).role_opts)
 
+    def test_cleared_budget_overrides_shipped_default(self):
+        """Очищенное поле «Бюджет в день» снимает лимит и тогда, когда значение лежит в поставляемом config/brain.json (entry_scout: 0.5)."""
+        if "day_usd" not in ((conf_mod.load(self.root).role_opts.get("entry_scout") or {}).get("budget") or {}):
+            self.skipTest("в тестовом корне нет базового бюджета entry_scout")
+        self.assertTrue(profiles.role_opts_set(self.root, "entry_scout", budget={"day_usd": None})["ok"])
+        self.assertNotIn("day_usd", conf_mod.load(self.root).role_opts["entry_scout"]["budget"])
+        self.assertTrue(profiles.role_opts_set(self.root, "entry_scout", params={"temperature": 0.3})["ok"])    # другая правка не возвращает лимит
+        c = conf_mod.load(self.root).role_opts["entry_scout"]
+        self.assertNotIn("day_usd", c["budget"])
+        self.assertEqual(c["params"]["temperature"], 0.3)
+        self.assertTrue(profiles.role_opts_set(self.root, "entry_scout", budget={"day_usd": 0.4})["ok"])
+        self.assertEqual(conf_mod.load(self.root).role_opts["entry_scout"]["budget"]["day_usd"], 0.4)
+
     def test_runner_applies_role_override_and_budget(self):
         profiles.role_opts_set(self.root, "news_reader", params={"temperature": 0.77, "max_tokens": 321})
         c = conf_mod.load(self.root)

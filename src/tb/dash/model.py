@@ -75,6 +75,22 @@ def read_json(path):
     return val
 
 
+def _tail_lines(path, n, block=65536):
+    """Последние n строк файла: читает блоки с конца, пока не найдёт n переводов строки (файл в десятки МБ не читается целиком)."""
+    with open(path, "rb") as f:
+        pos = f.seek(0, 2)
+        buf = b""
+        while pos > 0 and buf.count(b"\n") <= n:
+            start = max(0, pos - block)
+            f.seek(start)
+            buf = f.read(pos - start) + buf
+            pos = start
+    lines = buf.decode("utf-8", errors="replace").splitlines()
+    if pos > 0 and lines:
+        lines = lines[1:]                          # первая строка блока могла начаться посередине
+    return lines[-n:]
+
+
 def read_jsonl(path, tail=None):
     """-> список dict; битые и нецелые строки (идущая запись) пропускаются; tail = последние N строк."""
     stamp = _stamp(path)
@@ -86,12 +102,13 @@ def read_jsonl(path, tail=None):
         return hit[1]
     out = []
     try:
-        with open(path, encoding="utf-8", errors="replace") as f:
-            lines = f.read().splitlines()
+        if tail:
+            lines = _tail_lines(path, tail)            # большой журнал целиком не читаем
+        else:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                lines = f.read().splitlines()
     except OSError:
         return []
-    if tail:
-        lines = lines[-tail:]
     for line in lines:
         line = line.strip()
         if not line:

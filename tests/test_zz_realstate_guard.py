@@ -4,6 +4,7 @@ import os
 import unittest
 
 import _bootstrap
+from tb.core import filelock
 
 
 class RealStateGuard(unittest.TestCase):
@@ -53,8 +54,7 @@ class RealStateGuard(unittest.TestCase):
             try:
                 with open(os.path.join(d, n), encoding="utf-8") as f:
                     pid = json.load(f).get("pid")
-                if isinstance(pid, int) and pid != os.getpid():
-                    os.kill(pid, 0)
+                if isinstance(pid, int) and pid != os.getpid() and filelock.pid_alive(pid):      # не os.kill(pid, 0): на Windows это TerminateProcess и убило бы живую платформу
                     out.add(os.path.join("runtime", "platform", n))
             except (OSError, ValueError, AttributeError):
                 pass
@@ -74,7 +74,7 @@ class RealStateGuard(unittest.TestCase):
         p = subprocess.Popen([sys.executable, "-c", "pass"])
         p.wait()
         with open(os.path.join(d, "runtime", "platform", "x.hb.json"), "w") as f:
-            json.dump({"pid": p.pid}, f)           # процесс завершён -> os.kill(pid, 0) даёт OSError
+            json.dump({"pid": p.pid}, f)           # процесс завершён -> filelock.pid_alive даёт False
         self.assertEqual(self._foreign_heartbeats(d), set())
         a = _bootstrap._snapshot_real(d)
         with open(os.path.join(d, "state", "leak.json"), "w") as f:
