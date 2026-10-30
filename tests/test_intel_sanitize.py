@@ -230,6 +230,35 @@ class TestStore(IntelCase):
         r = st.add_many([self.mk("Bitcoin ETF inflows hit record high")], NOW)
         self.assertEqual(r["new"], 1)
 
+    def test_old_item_redelivered_by_source_is_not_new_again(self):
+        """RSS отдаёт заголовок с исходной датой публикации старше окна дедупа: раньше он записывался как «новый» на каждом обходе (один заголовок тысячи раз)."""
+        old = self.mk("Bitcoin ETF inflows hit record high", ts=NOW - 3 * 86400)
+        st = I.ItemStore(self.root)
+        self.assertEqual(st.add_many([old], NOW)["new"], 1)
+        for _ in range(3):
+            self.assertEqual(st.add_many([self.mk("Bitcoin ETF inflows hit record high", ts=NOW - 3 * 86400)], NOW + 60)["new"], 0)
+        self.assertEqual(I.ItemStore(self.root).add_many([self.mk("Bitcoin ETF inflows hit record high", ts=NOW - 3 * 86400)], NOW + 120)["new"], 0)    # и после рестарта
+        self.assertEqual(len(st.load()), 1)
+
+    def test_item_older_than_retention_is_not_stored(self):
+        st = I.ItemStore(self.root)
+        r = st.add_many([self.mk("Ancient story about nothing at all", ts=NOW - 30 * 86400)], NOW)
+        self.assertEqual((r["new"], r["dup"]), (0, 1))
+        self.assertEqual(st.load(), [])
+
+    def test_prune_removes_existing_duplicates_and_merges_seen(self):
+        st = I.ItemStore(self.root)
+        st.add_many([self.mk("Bitcoin ETF inflows hit record high")], NOW)
+        row = st.load()[0]
+        with open(st.path, "a", encoding="utf-8") as f:
+            for seen in (["b.example"], ["c.example"], []):
+                f.write(json.dumps(dict(row, seen=seen) if seen else row, ensure_ascii=False) + "\n")
+        self.assertEqual(len(st.load()), 4)
+        self.assertEqual(st.prune(NOW), 3)
+        rows = st.load()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["seen"], ["b.example", "c.example"])
+
     def test_dedup_survives_restart(self):
         I.ItemStore(self.root).add_many([self.mk("Bitcoin ETF inflows hit record high")], NOW)
         r = I.ItemStore(self.root).add_many([self.mk("Bitcoin ETF inflows hit record high")], NOW)

@@ -179,6 +179,7 @@ class ItemStore(object):
         self.retention_days = retention_days
         self.path = paths.runtime("intel", "items.jsonl", root=root)
         self._recent = []                      # [(ts, ref, trigrams, domain, index_in_file_cache)]
+        self._ref_dom = {}                     # ref -> (ts, домен) всех хранимых заголовков
         self._loaded = False
 
     def _read_all(self):
@@ -209,8 +210,14 @@ class ItemStore(object):
 
     def _index(self, now):
         if not self._loaded:
+            rows = self._read_all()
             self._recent = [self._entry(r.get("ts", 0), r["ref"], r["title"], domain_of(r.get("url", "")) or r.get("src", ""))
-                            for r in self._read_all() if r.get("ts", 0) >= now - DEDUP_WINDOW_S]
+                            for r in rows if r.get("ts", 0) >= now - DEDUP_WINDOW_S]
+            # ref ВСЕХ хранимых заголовков (а не только за 24 ч): RSS отдаёт заголовки с исходной датой публикации старше суток, и по окну дедупа их находили «новыми»
+            # на каждом обходе источника (один заголовок записывался тысячи раз)
+            self._ref_dom = {}
+            for r in rows:
+                self._ref_dom.setdefault((r["ref"], r.get("ts", 0)), domain_of(r.get("url", "")) or r.get("src", ""))
             self._loaded = True
             self._reindex()
         keep = [x for x in self._recent if x[0] >= now - DEDUP_WINDOW_S]
@@ -232,6 +239,9 @@ class ItemStore(object):
         e = self._by_ref.get(it["ref"])
         if e is not None:
             return e
+        known = self._ref_dom.get((it["ref"], it["ts"]))
+        if known is not None:                              # тот же заголовок с той же датой публикации, уже хранимый, но старше окна дедупа (повторная выдача источником)
+            return (it["ts"], it["ref"], (), known, ())
         seen = set()
         for t in _prefix(tg):                              # префиксный фильтр: порог Жаккара 0.8 требует общего триграмма в префиксах
             for e in self._idx.get(t, ()):
@@ -248,8 +258,12 @@ class ItemStore(object):
         res = {"new": 0, "dup": 0, "confirmed": 0}
         fresh, confirm = [], {}
         self.last_fresh = fresh                              # новые элементы последнего вызова (для быстрого канала news_flash)
+        horizon = now - self.retention_days * 86400
         for it in items:
             dom = domain_of(it.get("url", "")) or it.get("src", "")
+            if it.get("ts", now) < horizon:                  # старше срока хранения: prune всё равно удалил бы, а источник вернул бы снова
+                res["dup"] += 1
+                continue
             e = self._find(it, trigrams(it["title"]))
             if e is not None:
                 res["dup"] += 1
@@ -261,6 +275,7 @@ class ItemStore(object):
             ne = self._entry(it["ts"], it["ref"], it["title"], dom)
             self._recent.append(ne)
             self._put(ne)
+            self._ref_dom.setdefault((it["ref"], it["ts"]), dom)
         if fresh:
             os.makedirs(os.path.dirname(self.path), exist_ok=True)
             with open(self.path, "a", encoding="utf-8") as f:
@@ -288,14 +303,41 @@ class ItemStore(object):
         text = "".join(json.dumps(r, ensure_ascii=False, separators=(",", ":")) + "\n" for r in rows)
         filelock.atomic_write(self.path, text)
 
+    @staticmethod
+    def _dedup_rows(rows):
+        """Одна запись на (ref, дата публикации): остаётся первая запись, seen и flags сливаются. -> (строки, сколько дублей убрано)."""
+        first, order = {}, []
+        for r in rows:
+            key = (r["ref"], r.get("ts", 0))              # тот же заголовок с другой датой публикации это новая публикация, не дубль
+            f = first.get(key)
+            if f is None:
+                first[key] = r
+                order.append(key)
+                continue
+            seen = list(f.get("seen") or [])
+            for d in list(r.get("seen") or []):
+                if d not in seen and len(seen) < MAX_SEEN:
+                    seen.append(d)
+            if seen:
+                f["seen"] = seen
+            fl = list(f.get("flags") or [])
+            for x in r.get("flags") or []:
+                if x not in fl:
+                    fl.append(x)
+            if fl:
+                f["flags"] = fl
+        return [first[k] for k in order], len(rows) - len(order)
+
     def prune(self, now=None):
-        """Ротация: убирает элементы старше retention_days. -> сколько удалено."""
+        """Ротация: убирает элементы старше retention_days и дубли по ref (прежняя запись одного заголовка тысячи раз). -> сколько удалено."""
         now = time.time() if now is None else now
         with filelock.FileLock(self.path + ".lock", wait=5.0):
             rows = self._read_all()
             keep = [r for r in rows if r.get("ts", 0) >= now - self.retention_days * 86400]
+            keep, dups = self._dedup_rows(keep)
             if len(keep) != len(rows):
                 self._write(keep)
+                self._loaded = False                          # индекс пересоберётся из файла
         return len(rows) - len(keep)
 
     def stats(self, now=None):
