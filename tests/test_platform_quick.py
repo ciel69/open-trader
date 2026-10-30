@@ -202,6 +202,8 @@ class StartTest(unittest.TestCase):
         self.assertIn("уже запущена", out)
 
     def test_start_frozen_not_thawing_gives_manual_instruction(self):
+        if os.name != "posix":
+            self.skipTest("POSIX: заморозка Ctrl+Z и «kill -CONT»; на Windows другая инструкция (Диспетчер задач)")
         root = mk_root(self)
         p = sleeper(self)
         S.write_json(S.lock_file(root), {"pid": p.pid, "profile": "paper"})
@@ -257,6 +259,8 @@ class StopTest(unittest.TestCase):
         self.assertIn("kill -TERM %d" % p.pid, "\n".join(out))
 
     def test_down_also_thaws(self):
+        if not hasattr(signal, "SIGCONT"):
+            self.skipTest("POSIX: сигнала SIGCONT на Windows нет")
         root = mk_root(self)
         p = spawn(self, self.WAIT_STOP, root)
         S.write_json(S.lock_file(root), {"pid": p.pid, "profile": "paper"})

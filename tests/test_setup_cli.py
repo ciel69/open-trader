@@ -38,14 +38,16 @@ class Setup(unittest.TestCase):
         h = self.helper(["да", "да", "да", "1"], secrets=[SECRET])
         self.assertEqual(h.run(), 0)
         st = auth.status(self.env)
-        self.assertTrue(st["key"] and st["token"] and st["perms_ok"])
+        self.assertTrue(st["key"] and st["token"])
+        self.assertEqual(st["perms_ok"], True if os.name == "posix" else None)       # права доступа к файлу проверяются только на POSIX
         self.assertTrue(setup_cli.has_provider_key(self.root, self.env))
         a = setup_cli.agent_state(self.root, self.env)
         self.assertTrue(a["hash"] and a["file"])
         with open(os.path.join(self.keys, "deepseek.env")) as f:
             self.assertEqual(f.read(), "DEEPSEEK_API_KEY=%s\n" % SECRET)
-        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.keys, "deepseek.env")).st_mode), 0o600)
-        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.keys, "agents", "api.token")).st_mode), 0o600)
+        if os.name == "posix":                      # биты доступа есть только на POSIX (на Windows os.stat даёт 0o666 всегда)
+            self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.keys, "deepseek.env")).st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.keys, "agents", "api.token")).st_mode), 0o600)
         out = self.text()
         self.assertNotIn(SECRET, out)
         with open(os.path.join(self.keys, "agents", "api.token")) as f:
@@ -131,7 +133,7 @@ class Setup(unittest.TestCase):
         os.chmod(os.path.join(self.keys, "control.json"), 0o644)
         self.assertFalse(setup_cli.perms_ok(os.path.join(self.keys, "control.json")))
         h.step_perms()
-        self.assertTrue(setup_cli.perms_ok(os.path.join(self.keys, "control.json")))
+        self.assertEqual(setup_cli.perms_ok(os.path.join(self.keys, "control.json")), True if os.name == "posix" else None)   # на Windows права не проверяются (None)
 
     def test_cli_needs_tty_and_check_works(self):
         err = io.StringIO()

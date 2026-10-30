@@ -184,7 +184,7 @@ class TestFormatsConstants(unittest.TestCase):
         self.assertEqual(set(bus.PRIORITIES), {"wake", "info"})
         for t in ("plan_armed", "entry_filled", "position_closed", "kill", "exec_down", "reconcile_alert", "scanner_signal", "milestone", "error"):
             self.assertIn(t, bus.EVENT_TYPES)
-        self.assertEqual(len(bus.EVENT_TYPES), 29)   # +service_down (WP11-B), +macro_blackout_soon (WP13a), +risk_level_changed (WP16), +control_cmd (WP12), +day_report, +day_state (WP14), +brain_wake_request (правило notify плана, 01_plan/03_brain)
+        self.assertEqual(len(bus.EVENT_TYPES), 30)   # +news_flash (быстрые новости), +service_down (WP11-B), +macro_blackout_soon (WP13a), +risk_level_changed (WP16), +control_cmd (WP12), +day_report, +day_state (WP14), +brain_wake_request (правило notify плана, 01_plan/03_brain)
         self.assertEqual(bus.EVENT_TYPES["brain_wake_request"], bus.PRI_WAKE)
         self.assertEqual(bus.MAX_EVENT_BYTES, 400)
         self.assertTrue(re.match(bus.RE_D_IDENT, "r_plus_1"))

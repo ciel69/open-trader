@@ -24,9 +24,32 @@ def jdump(obj, p):
         json.dump(obj, f)
 
 
+def _live_platform():
+    """Есть ли живая платформа владельца (heartbeat живого чужого процесса): она сама пишет шину событий, утечку теста от неё не отличить."""
+    from tb.core import filelock
+    d = os.path.join(ROOT, "runtime", "platform")
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return False
+    for n in names:
+        if n.endswith(".hb.json"):
+            try:
+                with open(os.path.join(d, n), encoding="utf-8") as f:
+                    pid = json.load(f).get("pid")
+                if isinstance(pid, int) and pid != os.getpid() and filelock.pid_alive(pid):
+                    return True
+            except (OSError, ValueError, AttributeError):
+                pass
+    return False
+
+
 def real_files():
-    return [os.path.join(ROOT, "state", "control", "risk_level.json"), os.path.join(ROOT, "state", "control", "risk_audit.jsonl"),
-            os.path.join(ROOT, "config", "risk_levels.json"), os.path.join(ROOT, "config", "risk_profile.json"), os.path.join(ROOT, "state", "bus", "events.jsonl")]
+    out = [os.path.join(ROOT, "state", "control", "risk_level.json"), os.path.join(ROOT, "state", "control", "risk_audit.jsonl"),
+           os.path.join(ROOT, "config", "risk_levels.json"), os.path.join(ROOT, "config", "risk_profile.json")]
+    if not _live_platform():
+        out.append(os.path.join(ROOT, "state", "bus", "events.jsonl"))
+    return out
 
 
 def stat_of(p):

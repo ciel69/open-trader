@@ -222,7 +222,7 @@ def p7(f):
     tot = sum(float(v.get("equity") or 0.0) for v in (f["portfolio"].get("venues") or {}).values() if isinstance(v, dict))
     dev = float(((f.get("limits") or {}).get("equity_sync") or {}).get("max_dev_frac") or 0.05)
     frac = abs(eq - tot) / max(eq, tot, 1e-9) if tot else 0.0 if f["mode"] in ("paper", "observe") else 1.0
-    if frac > dev:
+    if frac > dev and f["mode"] not in ("paper", "observe"):      # у бумажного счёта свой виртуальный equity (растёт и падает с бумажным результатом), с кошельком биржи в портфеле его сверять не с чем
         return chk("P7", "Баланс и сверка", sev, False, "equity биржи %.2f vs портфель %.2f (отклонение %.1f%% > %.1f%%)" % (eq, tot, frac * 100, dev * 100), equity=eq, portfolio=tot)
     need = float(f["lc"]["preflight"]["min_free_usdt"])
     if not _num(free) or free < need:

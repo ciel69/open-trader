@@ -94,10 +94,11 @@ def jl(path):
 
 
 def pid_alive(pid):
+    """Жив ли процесс. На Windows os.kill(pid, 0) не проверка, а TerminateProcess (убил бы платформу), поэтому проверка общая с filelock (OpenProcess)."""
+    from tb.core import filelock
     try:
-        os.kill(int(pid), 0)
-        return True
-    except (OSError, ValueError, TypeError):
+        return filelock.pid_alive(int(pid))
+    except (ValueError, TypeError):
         return False
 
 
