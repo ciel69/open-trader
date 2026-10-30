@@ -1146,6 +1146,8 @@ class Executor(object):
         full = qty >= remaining - step / 2.0 or (a["type"] == "close" and float(a.get("frac", 1.0)) >= 0.999)
         if qty <= 0 and not full:
             return False
+        if full and self.act.close_inflight(p):      # закрытие уже в пути: без повторов на каждом тике (иначе ордер снимается раньше исполнения и позиция висит)
+            return False
         kind, info = self.act.close(p, None if full else qty, reason, why=a.get("why", ""), full=full)
         self.decide("rule", a["type"], plan=p["spec"]["id"], args={"qty": remaining if full else qty}, why=a.get("why", ""),
                     res={"ok": kind == "ok", "code": info.get("code", "OK")})

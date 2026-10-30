@@ -538,11 +538,20 @@ class Actions(object):
         return "error", {"code": code, "detail": e.msg}
 
     # ------------------------------------------------------------------ закрытие
+    CLOSE_RETRY_S = 10.0     # полное закрытие уже отправлено: повтор раньше этого срока снимал бы живой ордер (cancel_all) и ставил новый, который не успевал исполниться
+
+    def close_inflight(self, p):
+        """True, если полное закрытие отправлено меньше CLOSE_RETRY_S секунд назад и ещё не завершено (rt.close.pending)."""
+        c = p["rt"].get("close") or {}
+        return bool(c.get("pending")) and self.ex.clock() - float(c.get("ts") or 0.0) < self.CLOSE_RETRY_S
+
     def close(self, p, qty, reason, why="", full=False):
         """Закрыть позицию (reduce-only market). full: сначала снять лесенку (только reduce-only ордера), затем закрыть всю позицию.
         -> ("ok"|"gone"|"denied"|"error"|"transient", info)."""
         ex, rt, spec = self.ex, p["rt"], p["spec"]
         sym, side = spec["symbol"], spec["side"]
+        if full and self.close_inflight(p):
+            return "transient", {"code": "CLOSE_PENDING"}
         vd = ex.gate.reduce(p, "close")
         if not vd:
             return "denied", {"code": vd.code}
@@ -553,6 +562,7 @@ class Actions(object):
         if full:
             rt.setdefault("close", {})["reason"] = reason
             rt["close"]["pending"] = True
+            rt["close"]["ts"] = ex.clock()
             try:
                 self.call("cancel_all", G.RISK_DOWN, sym, reduce_only_only=True)
                 for t in (rt.get("targets") or {}).values():
